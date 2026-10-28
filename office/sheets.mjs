@@ -6,8 +6,28 @@ export const tabs = ['Companies', 'Contacts', 'Opportunities', 'Campaign Queue',
 
 // Credentials remain in the local process. The sole spreadsheet operation is
 // values:batchGet with a read-only OAuth scope and a fixed workbook/range list.
-export async function readMaster() {
+export async function readMaster({ snapshotPath } = {}) {
   const file = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  if (!file && snapshotPath) {
+    try {
+      const snapshot = JSON.parse(await readFile(snapshotPath, 'utf8'));
+      if (
+        snapshot.masterId !== masterId ||
+        snapshot.status !== 'snapshot' ||
+        !snapshot.readAt ||
+        !snapshot.tabs
+      )
+        throw new Error('Snapshot non valido');
+      return {
+        ...snapshot,
+        status: 'snapshot',
+        reason:
+          'Snapshot reale verificato dal connettore Codex. Il backend non ha eseguito una nuova lettura live: aggiornare tramite collegamento autorizzato prima di dedupe o scritture.',
+      };
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
   if (!file)
     return {
       status: 'unavailable',

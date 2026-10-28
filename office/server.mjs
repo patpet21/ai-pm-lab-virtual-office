@@ -13,6 +13,7 @@ import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { CodexProvider } from './codex.mjs';
+import { handoffText, officePolicy, roleFor, roles } from './roles.mjs';
 import { readMaster } from './sheets.mjs';
 import { observedSkill, skillNames } from './skills.mjs';
 
@@ -169,6 +170,81 @@ export async function startOffice(options = {}) {
     if (!thread) throw new Error('Sessione non appartenente a questo ufficio');
     return thread;
   };
+  async function createThread(data) {
+    const role = roleFor(data.role);
+    const sandbox =
+      data.sandbox ||
+      (process.env.CODEX_OFFICE_SANDBOX === 'workspace-write' ? 'workspace-write' : 'read-only');
+    if (!['read-only', 'workspace-write'].includes(sandbox)) throw new Error('Permessi non validi');
+    for (const name of role?.skills || (role?.skill ? [role.skill] : []))
+      if (!skills.some((skill) => skill.name === name))
+        throw new Error('Skill non disponibile: ' + name);
+    const selected =
+      data.model ||
+      process.env.CODEX_OFFICE_MODEL ||
+      models.find((model) => model.isDefault)?.model ||
+      models[0]?.model;
+    if (!selected || !models.some((model) => model.model === selected))
+      throw new Error('Selezionare un modello disponibile in model/list');
+    const result = await provider.request('thread/start', {
+      cwd,
+      model: selected,
+      sandbox,
+      approvalPolicy: 'on-request',
+      developerInstructions:
+        officePolicy + (role ? ` Ruolo assegnato: ${role.name}. ${role.description}` : ''),
+    });
+    const thread = {
+      id: result.thread.id,
+      createdAt: new Date().toISOString(),
+      status: 'idle',
+      cwd,
+      sandbox,
+      model: result.model,
+      role: role?.id || null,
+      label: role?.name || 'Codex',
+      teamId: data.teamId || null,
+    };
+    owned.push(thread);
+    loaded.add(thread.id);
+    save();
+    return thread;
+  }
+  async function startTurn(thread, data) {
+    if (!loaded.has(thread.id)) throw new Error('Ricollegare prima la sessione');
+    if (thread.activeTurn || turnsStarting.has(thread.id))
+      throw new Error('Un turno è già in esecuzione');
+    if (typeof data.text !== 'string' || !data.text.trim() || data.text.length > 32000)
+      throw new Error('Messaggio non valido');
+    const role = roleFor(thread.role || undefined);
+    const requested = data.skill ? [data.skill] : role?.skills || (role?.skill ? [role.skill] : []);
+    const input = [{ type: 'text', text: data.text, text_elements: [] }];
+    for (const name of requested) {
+      const skill = skills.find((skill) => skill.name === name);
+      if (!skill) throw new Error('Skill non disponibile');
+      input.push({ type: 'skill', name: skill.name, path: skill.path });
+    }
+    record({
+      method: 'office/userMessage',
+      params: { threadId: thread.id, text: data.text, requestedSkills: requested },
+    });
+    turnsStarting.add(thread.id);
+    try {
+      const result = await provider.request('turn/start', { threadId: thread.id, input });
+      if (
+        !events.some(
+          (event) => event.method === 'turn/completed' && event.params.turn.id === result.turn.id,
+        )
+      ) {
+        thread.activeTurn = result.turn.id;
+        thread.status = result.turn.status;
+        save();
+      }
+      return result;
+    } finally {
+      turnsStarting.delete(thread.id);
+    }
+  }
   const server = createServer(async (req, res) => {
     const json = (code, value) => {
       res.writeHead(code, {
@@ -243,6 +319,7 @@ export async function startOffice(options = {}) {
               : { name, unavailable: true };
           }),
           models,
+          roles,
           approvals: [...approvals.values()],
           events: events.filter((event) => event.seq > after),
           cursor: seq,
@@ -267,40 +344,34 @@ export async function startOffice(options = {}) {
         return json(200, { events: lines });
       }
       if (req.method === 'GET' && url.pathname === '/api/sheets')
-        return json(200, await readMaster());
+        return json(
+          200,
+          await readMaster({ snapshotPath: join(stateDir, 'master-snapshot.json') }),
+        );
       if (req.method !== 'POST') return json(404, { error: 'Not found' });
       const data = await body(req);
       if (!provider.connected) return json(503, { error: 'Codex Disconnected' });
-      if (url.pathname === '/api/threads') {
-        const sandbox =
-          process.env.CODEX_OFFICE_SANDBOX === 'workspace-write' ? 'workspace-write' : 'read-only';
-        const selected =
-          data.model ||
-          process.env.CODEX_OFFICE_MODEL ||
-          models.find((model) => model.isDefault)?.model ||
-          models[0]?.model;
-        if (!selected || !models.some((model) => model.model === selected))
-          throw new Error('Selezionare un modello disponibile in model/list');
-        const result = await provider.request('thread/start', {
-          cwd,
-          model: selected,
-          sandbox,
-          approvalPolicy: 'on-request',
-          developerInstructions:
-            'AI PM Lab Virtual Office: non inviare email o messaggi, non fare follow-up. Non modificare il Master Leads durante lo sviluppo. Non modificare skill globali o altre sessioni Codex.',
-        });
-        const thread = {
-          id: result.thread.id,
-          createdAt: new Date().toISOString(),
-          status: 'idle',
-          cwd,
-          sandbox,
-          model: result.model,
-        };
-        owned.push(thread);
-        loaded.add(thread.id);
-        save();
-        return json(200, thread);
+      if (url.pathname === '/api/threads') return json(200, await createThread(data));
+      if (url.pathname === '/api/team') {
+        const teamId = randomBytes(16).toString('hex');
+        const threads = [];
+        try {
+          for (const role of roles.slice(0, 3))
+            threads.push(
+              await createThread({
+                model: data.model,
+                sandbox: data.sandbox,
+                role: role.id,
+                teamId,
+              }),
+            );
+        } catch (error) {
+          return json(400, {
+            error: error.message,
+            createdThreadIds: threads.map((thread) => thread.id),
+          });
+        }
+        return json(200, { teamId, threads });
       }
       if (url.pathname === '/api/resume') {
         const thread = threadFor(data.threadId);
@@ -312,6 +383,8 @@ export async function startOffice(options = {}) {
           cwd: thread.cwd,
           sandbox: thread.sandbox,
           approvalPolicy: 'on-request',
+          developerInstructions:
+            officePolicy + (thread.role ? ` Ruolo assegnato: ${roleFor(thread.role).name}.` : ''),
         });
         loaded.add(thread.id);
         thread.status = 'idle';
@@ -319,42 +392,41 @@ export async function startOffice(options = {}) {
         thread.phase = null;
         return json(200, result);
       }
-      if (url.pathname === '/api/turn') {
-        const thread = threadFor(data.threadId);
-        if (!loaded.has(thread.id)) throw new Error('Ricollegare prima la sessione');
-        if (thread.activeTurn || turnsStarting.has(thread.id))
-          throw new Error('Un turno è già in esecuzione');
-        if (typeof data.text !== 'string' || !data.text.trim() || data.text.length > 16000)
-          throw new Error('Messaggio non valido');
-        const input = [{ type: 'text', text: data.text, text_elements: [] }];
-        if (data.skill) {
-          const skill = skills.find((row) => row.name === data.skill);
-          if (!skill) throw new Error('Skill non disponibile');
-          input.push({ type: 'skill', name: skill.name, path: skill.path });
-        }
-        record({
-          method: 'office/userMessage',
-          params: { threadId: thread.id, text: data.text, requestedSkill: data.skill || null },
+      if (url.pathname === '/api/turn')
+        return json(200, await startTurn(threadFor(data.threadId), data));
+      if (url.pathname === '/api/handoff') {
+        const source = threadFor(data.fromThreadId);
+        const target = threadFor(data.toThreadId);
+        if (source.activeTurn || turnsStarting.has(source.id))
+          throw new Error('Attendere il completamento del mittente');
+        const history = await provider.request('thread/read', {
+          threadId: source.id,
+          includeTurns: true,
         });
-        turnsStarting.add(thread.id);
-        try {
-          const result = await provider.request('turn/start', { threadId: thread.id, input });
-          // The response may arrive before turn/started. Make immediate cancel
-          // and concurrent start requests safe without waiting for the next poll.
-          if (
-            !events.some(
-              (event) =>
-                event.method === 'turn/completed' && event.params.turn.id === result.turn.id,
-            )
-          ) {
-            thread.activeTurn = result.turn.id;
-            thread.status = result.turn.status;
-            save();
-          }
-          return json(200, result);
-        } finally {
-          turnsStarting.delete(thread.id);
-        }
+        const turn = history.thread.turns?.at(-1);
+        if (!turn) throw new Error('Nessun turno reale da trasferire');
+        const text = handoffText(source, target, turn);
+        if (
+          target.handoffs?.some((row) => row.sourceId === source.id && row.sourceTurnId === turn.id)
+        )
+          throw new Error('Questo risultato è già stato trasferito a questa sessione');
+        const result = await startTurn(target, { text });
+        (target.handoffs ??= []).push({
+          sourceId: source.id,
+          sourceTurnId: turn.id,
+          turnId: result.turn.id,
+        });
+        record({
+          method: 'office/handoff',
+          params: {
+            threadId: target.id,
+            fromThreadId: source.id,
+            sourceTurnId: turn.id,
+            turnId: result.turn.id,
+          },
+        });
+        save();
+        return json(200, { threadId: target.id, turnId: result.turn.id });
       }
       if (url.pathname === '/api/interrupt') {
         const thread = threadFor(data.threadId);

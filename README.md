@@ -2,6 +2,8 @@
 
 Command Center reale per Codex, mantenendo Canvas, ufficio, personaggi ed editor di Pixel Agents.
 
+Il pannello Agenzia offre specialisti in sessioni reali separate, prompt d’esempio, stato e chat per reparto, passaggio verificabile dei risultati e un coordinatore singolo per la pipeline completa. I dati reali sincronizzati tramite il connettore Codex possono essere mostrati come snapshot datato; il backend Live resta distinto.
+
 Avvio: `npm ci`, `npm run build:webview`, `npm run office`, quindi aprire `http://127.0.0.1:4318` e inserire il token stampato nel terminale.
 
 - [Installazione, architettura, sicurezza, skill, Sheets e Netlify](docs/virtual-office.md)

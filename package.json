@@ -125,7 +125,8 @@
     "test:office": "node --test office/*.test.mjs",
     "test:office:live": "node office/live-check.mjs",
     "test:office:browser": "node office/browser-check.mjs",
-    "test:office:protocol": "node office/protocol-check.mjs"
+    "test:office:protocol": "node office/protocol-check.mjs",
+    "test:office:agency": "node office/agency-check.mjs"
   },
   "devDependencies": {
     "@asyncapi/modelina": "^5.10.1",

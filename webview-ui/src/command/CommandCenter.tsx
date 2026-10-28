@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import type { Approval, OfficeEvent, OfficeThread } from './client';
 import { api, connect, disconnect, getSnapshot, subscribe } from './client';
+import { RoleManager } from './RoleManager';
 
 const names = ['ai-pm-lead-discovery', 'ai-pm-business-intelligence', 'ai-pm-campaign-readiness'];
 const labels = ['Lead Discovery', 'Business Intelligence', 'Campaign Readiness'];
@@ -101,7 +102,8 @@ export function CommandCenter({ children }: { children: ReactNode }) {
   const [text, setText] = useState('');
   const [skill, setSkill] = useState('');
   const [model, setModel] = useState('');
-  const [tab, setTab] = useState('activity');
+  const [tab, setTab] = useState('agency');
+  const [sandbox, setSandbox] = useState('read-only');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<History | null>(null);
@@ -127,7 +129,12 @@ export function CommandCenter({ children }: { children: ReactNode }) {
       setTab('activity');
     };
     window.addEventListener('office-select-thread', listener);
-    return () => window.removeEventListener('office-select-thread', listener);
+    const openAgency = () => setTab('agency');
+    window.addEventListener('office-open-agency', openAgency);
+    return () => {
+      window.removeEventListener('office-select-thread', listener);
+      window.removeEventListener('office-open-agency', openAgency);
+    };
   }, []);
   useEffect(() => {
     let cancelled = false;
@@ -253,7 +260,10 @@ export function CommandCenter({ children }: { children: ReactNode }) {
                 <button
                   key={name}
                   className={'station ' + (active ? 'working' : '')}
-                  onClick={() => setSkill(name)}
+                  onClick={() => {
+                    setSkill(name);
+                    setTab('agency');
+                  }}
                   disabled={!installed}
                   title={installed?.path || 'Skill non disponibile'}
                 >
@@ -274,6 +284,7 @@ export function CommandCenter({ children }: { children: ReactNode }) {
           </div>
           <nav className="command-tabs" aria-label="Pannelli">
             {[
+              ['agency', 'Agenzia e agenti'],
               ['activity', 'Attività e dettagli'],
               ['leads', 'Master Leads'],
               ['history', 'Storico esecuzioni'],
@@ -288,6 +299,23 @@ export function CommandCenter({ children }: { children: ReactNode }) {
             ))}
           </nav>
           <section className="data-panel">
+            {tab === 'agency' && (
+              <RoleManager
+                state={state}
+                busy={busy}
+                model={model}
+                sandbox={sandbox}
+                act={act}
+                select={(row) => {
+                  selectThread(row);
+                  setTab('agency');
+                }}
+                prompt={(value, selectedSkill) => {
+                  setText(value);
+                  setSkill(selectedSkill || '');
+                }}
+              />
+            )}
             {tab === 'activity' && (
               <>
                 <div className="panel-heading">
@@ -413,7 +441,12 @@ export function CommandCenter({ children }: { children: ReactNode }) {
                 )}
                 {sheets && (
                   <p>
-                    {sheets.status} · {sheets.reason || 'Letto: ' + sheets.readAt}{' '}
+                    <strong>
+                      {sheets.status === 'snapshot'
+                        ? 'Snapshot verificato — non Live'
+                        : sheets.status}
+                    </strong>{' '}
+                    · {sheets.reason} {sheets.readAt && 'Letto: ' + sheets.readAt}{' '}
                     {sheets.rangeLimit && '· ' + sheets.rangeLimit}
                   </p>
                 )}
@@ -426,8 +459,8 @@ export function CommandCenter({ children }: { children: ReactNode }) {
                         onClick={() => setSheetTab(name)}
                       >
                         {name}
-                        {sheets?.status === 'connected'
-                          ? ` (${Math.max(0, (sheets.tabs[name]?.length || 0) - 1)})`
+                        {['connected', 'snapshot'].includes(sheets?.status || '')
+                          ? ` (${Math.max(0, (sheets?.tabs[name]?.length || 0) - 1)})`
                           : ''}
                       </button>
                     ),
@@ -475,7 +508,10 @@ export function CommandCenter({ children }: { children: ReactNode }) {
               disabled={!state.connected || busy}
               onClick={() =>
                 act(async () => {
-                  const row = await api<OfficeThread>('threads', { model: model || undefined });
+                  const row = await api<OfficeThread>('threads', {
+                    model: model || undefined,
+                    sandbox,
+                  });
                   setHistory(null);
                   setSelectedId(row.id);
                 })
@@ -496,6 +532,17 @@ export function CommandCenter({ children }: { children: ReactNode }) {
               </option>
             ))}
           </select>
+          <label>
+            Permessi delle nuove sessioni
+            <select
+              aria-label="Permessi nuove sessioni"
+              value={sandbox}
+              onChange={(event) => setSandbox(event.target.value)}
+            >
+              <option value="read-only">Sola lettura</option>
+              <option value="workspace-write">Operativo: scrittura nel workspace</option>
+            </select>
+          </label>
           <select
             aria-label="Sessione Codex"
             value={id || ''}
@@ -509,7 +556,7 @@ export function CommandCenter({ children }: { children: ReactNode }) {
             </option>
             {state.threads.map((row) => (
               <option key={row.id} value={row.id}>
-                {row.id.slice(0, 8)} · {row.status}
+                {row.label || 'Codex'} · {row.id.slice(0, 8)} · {row.status}
               </option>
             ))}
           </select>
@@ -564,6 +611,12 @@ export function CommandCenter({ children }: { children: ReactNode }) {
               });
             }}
           >
+            {thread?.role && (
+              <small>
+                Ruolo: {thread.label}. Le skill del ruolo vengono applicate al turno; la fase
+                effettiva appare solo dagli eventi osservati.
+              </small>
+            )}
             <label>
               Skill per il prossimo messaggio
               <select

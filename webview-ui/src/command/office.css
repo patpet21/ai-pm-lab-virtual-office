@@ -461,3 +461,47 @@
 .command-center pre {
   font-family: Consolas, monospace;
 }
+.role-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.role-card {
+  padding: 14px;
+  border: 1px solid #294457;
+  border-radius: 8px;
+  background: #111f30;
+}
+.role-card h3 {
+  font-size: 15px;
+  color: #9be2da;
+}
+.role-card p {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.role-thread {
+  border-top: 1px solid #30475b;
+  margin-top: 12px;
+  padding-top: 10px;
+}
+.role-thread small {
+  display: block;
+  margin-top: 6px;
+}
+.handoff-controls {
+  display: grid;
+  gap: 5px;
+  margin-top: 8px;
+}
+.role-manager .panel-heading {
+  align-items: start;
+}
+.role-card details {
+  margin: 8px 0;
+}
+@media (max-width: 1000px) {
+  .role-grid {
+    grid-template-columns: 1fr;
+  }
+}

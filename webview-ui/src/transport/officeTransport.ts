@@ -40,7 +40,11 @@ export class OfficeTransport implements MessageTransport {
     for (const thread of live) {
       const id = this.idFor(thread.id);
       if (!this.visible.has(thread.id))
-        this.emit({ type: 'agentCreated', id, directoryName: 'Codex ' + thread.id.slice(0, 8) });
+        this.emit({
+          type: 'agentCreated',
+          id,
+          directoryName: (thread.label || 'Codex') + ' ' + thread.id.slice(0, 8),
+        });
     }
     if (this.bootId !== state.bootId) {
       this.bootId = state.bootId;

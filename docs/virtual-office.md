@@ -36,7 +36,7 @@ Variabili lette dal servizio, mai incorporate nella build Vite:
 | `CODEX_OFFICE_TOKEN`             | Token opzionale fornito dall’operatore, almeno 32 caratteri. Preferire quello casuale predefinito.                           |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Percorso locale di un file credenziali service account Google con accesso Viewer al Master Leads.                            |
 
-La porta del frontend è fissata a **4318**. `CODEX_OFFICE_PORT` serve alle prove tecniche del bridge; una porta diversa richiede anche aggiornamento dell’endpoint frontend e della CSP. Nessuna variabile segreta deve avere prefisso `VITE_`.
+Il frontend Netlify e Vite contatta **4318**. Se servito direttamente da `127.0.0.1`, usa l’origine locale corrente, anche su una porta tecnica diversa. La CSP Netlify resta limitata a 4318. Nessuna variabile segreta deve avere prefisso `VITE_`.
 
 ## Sessioni ed eventi
 
@@ -60,6 +60,17 @@ Il selettore aggiunge un input ufficiale `{type: "skill", name, path}` al prossi
 
 Questa evidenza dimostra la lettura delle istruzioni, non il completamento della funzione o delle sue sottofasi commerciali. Se il protocollo non offre evidenza sufficiente, si mostra **fase non osservata**. Un solo personaggio può spostarsi fra le tre postazioni; una postazione occupata non viene assegnata una seconda volta.
 
+### Agenti separati e agenzia
+
+Il pannello **Agenzia e agenti** distingue il ruolo assegnato dalla fase realmente osservata. Ogni reparto espone descrizione, prompt leggibile/modificabile, sessioni, incarico, stato e ultimo evento osservato. Selezionare una sessione apre la sua chat; **+ Codex** nell’ufficio apre il pannello dell’agenzia.
+
+- **Crea specialista:** crea una sessione reale dedicata al ruolo selezionato e carica un prompt d’esempio. Il lavoro inizia solo con **Invia a Codex**.
+- **Crea team di 3 sessioni reali:** crea tre thread distinti Discovery, Intelligence e Campaign Readiness, associati allo stesso team. Gli incarichi indipendenti possono essere avviati separatamente; l’animazione resta idle fino a eventi reali di turno.
+- **Passa risultato e avvia reparto:** dopo un turno completato, legge il risultato finale effettivo con `thread/read`, ne conserva thread/turno di provenienza e lo invia al reparto successivo. Sono ammessi solo Discovery → Intelligence → Readiness. Risultati mancanti, turni falliti o trasferimenti duplicati vengono respinti; ID e sync devono essere verificati sul Master prima di procedere. Il passaggio è esplicito, non uno scheduler o un follow-up.
+- **Crea coordinatore:** crea una sola sessione con le tre skill, chiedendo la pipeline sequenziale con gli stessi company_id. La UI mostra un solo personaggio, non tre agenti indipendenti inventati.
+
+I permessi delle nuove sessioni sono selezionabili: **Sola lettura** oppure **Operativo: scrittura nel workspace**. Nessun full access e nessuna modifica dei permessi globali. Gli aggiornamenti del Master richiesti dall’operatore sono consentiti solo entro le regole delle skill, con dedupe, soppressioni e verifica dopo scrittura; non rimane un divieto generico che bloccava anche le operazioni autorizzate dopo lo sviluppo.
+
 ## Google Sheets, solo lettura
 
 Unico workbook: [Master Leads esistente](https://docs.google.com/spreadsheets/d/1Uuho6icG-4qfnV3jRoTFwXNUoo4wwEgoLfwWuZMZTBk/edit).
@@ -68,7 +79,9 @@ L’adattatore diretto attualmente implementato supporta un eventuale service ac
 
 Il codice usa lo scope `spreadsheets.readonly` e la sola operazione `values:batchGet`, con ID fisso e intervalli fissi `A1:AZ10000` per Companies, Contacts, Opportunities, Campaign Queue e Research Log. Non esistono route di scrittura Sheets. La dashboard indica intervalli e ora di lettura; la tabella visualizza le prime 300 righe filtrate. Nessun dato viene sostituito con righe locali o dati di esempio.
 
-Durante lo sviluppo non erano presenti queste credenziali opzionali. Sono stati verificati stato **unavailable**, assenza di righe sostitutive e comportamento del browser; **Google Sheets Live non è ancora collaudato**. Non è stata fatta alcuna modifica al Master Leads. Il connettore Google già autorizzato nella chat/app Codex non è ancora stato riutilizzato dal processo locale dedicato.
+Il 28 ottobre, su richiesta esplicita dell’operatore, il connettore autorizzato di questa chat Codex ha aggiunto e riletto **15 aziende, 15 contatti e un Research Log**, con stato finale `synced`. ID e date originali sono stati preservati; nessuna email inviata e nessuna riga Opportunities/Campaign Queue creata. Il connettore ha funzionato in questa chat; l’accesso da parte del processo locale dedicato resta distinto e **Google Sheets Live del backend non è ancora collaudato**.
+
+La copia `.office/master-snapshot.json`, esclusa da Git, contiene l’ultima lettura reale verificata tramite quel connettore. In assenza di accesso diretto il backend può mostrarla con l’etichetta **Snapshot verificato — non Live** e la data di lettura. Non viene aggiornata automaticamente, non contiene esempi e non può sostituire la rilettura live per dedupe o nuove scritture. Il contenuto privato non è incluso nella build Netlify.
 
 ### Connettore esistente e alternative con il proprio account
 
@@ -100,8 +113,9 @@ npm run test:package-contract
 npm run test:office:live
 npm run test:office:protocol
 npm run test:office:browser
+npm run test:office:agency
 ```
 
-Le ultime tre prove usano Codex reale e l’account già autenticato. Creano sessioni tecniche proprie, non eseguono la pipeline commerciale e non usano dati simulati. Il controllo browser usa Edge headless già installato. Le sessioni tecniche possono apparire nello storico Codex dell’account. Per gli esiti effettivi del 28 ottobre 2026 e i limiti della suite originale vedere [verifica](virtual-office-verification.md).
+Le prove live, protocol, browser e agency usano Codex reale e l’account già autenticato. Creano sessioni tecniche proprie, non eseguono la pipeline commerciale e non usano dati simulati. La prova agency richiede uno snapshot reale già verificato in `.office/master-snapshot.json`; non ne genera uno dimostrativo. Il controllo browser usa Edge headless già installato. Le sessioni tecniche possono apparire nello storico Codex dell’account. Per gli esiti effettivi del 28 ottobre 2026 e i limiti della suite originale vedere [verifica](virtual-office-verification.md).
 
 La documentazione ufficiale consultata è [Codex App Server](https://learn.chatgpt.com/docs/app-server); i contratti sono stati confrontati anche con `codex app-server generate-ts` della versione locale. OpenAI qualifica App Server come sperimentale: questa implementazione locale collaudata non costituisce una garanzia di compatibilità futura o di supporto di produzione del protocollo.

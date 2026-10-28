@@ -78,9 +78,9 @@ function App() {
         'ai-pm-campaign-readiness',
       ];
       for (const thread of state.threads) {
-        if (!thread.loaded || !state.connected || thread.status !== 'inProgress' || !thread.phase)
-          continue;
-        const index = skills.indexOf(thread.phase.name);
+        if (!thread.loaded || !state.connected) continue;
+        const assigned = ['discovery', 'intelligence', 'campaign'].indexOf(thread.role || '');
+        const index = thread.phase ? skills.indexOf(thread.phase.name) : assigned;
         const seatId = seats[index];
         const id = officeTransport.idFor(thread.id);
         const character = office.characters.get(id);

@@ -1,6 +1,6 @@
 # Verifica effettiva — 28 ottobre 2026
 
-Ambiente: Windows, Node 22.22.2, Codex CLI 0.144.6, Edge headless. Branch `codex/real-virtual-office`, base `b1bafd02896d90d83457266575a1e8e5011ce997`. Nessuna prova ha usato una sessione di lead generation esistente, inviato email o modificato il Master Leads.
+Ambiente: Windows, Node 22.22.2, Codex CLI 0.144.6, Edge headless. Branch `codex/real-virtual-office`, base `b1bafd02896d90d83457266575a1e8e5011ce997`. Le prove tecniche non hanno usato sessioni di lead generation esistenti, inviato email o scritto sul Master. Separatamente, su richiesta esplicita dell’operatore, è stata completata la sincronizzazione dei 15 risultati già ricercati, descritta sotto.
 
 | Funzione / controllo             | Esito osservato                                                                                                                                                                                                                                              |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -24,9 +24,17 @@ Ambiente: Windows, Node 22.22.2, Codex CLI 0.144.6, Edge headless. Branch `codex
 
 Le prove reali sono ripetibili con `test:office:live`, `test:office:protocol` e `test:office:browser`. Creano proprie sessioni tecniche nell’account Codex. I due screenshot locali sono `test-results/office-connected.png` e `test-results/office-disconnected.png`; le immagini e i registri tecnici non vengono pubblicati con il repository.
 
+## Aggiornamento: agenti separati e sincronizzazione autorizzata
+
+- Importate nel Master reale 15 righe Companies, 15 Contacts e un Research Log. Rilette tutte le celle, preservati ID, date e validazioni; successivamente impostato e riletto `synced`. Il ledger locale è stato aggiornato solo dopo la verifica remota. Nessuna opportunità o Campaign Queue aggiunta; nessuna email inviata.
+- Verificata la possibilità di usare il connettore Google autorizzato **in questa chat Codex**. Questo non dimostra accesso Live dal processo locale dedicato. Il frontend può mostrare l’ultima copia reale verificata, conservata fuori da Git, con data e dicitura **Snapshot verificato — non Live**.
+- `npm run test:office:agency` passato con Edge e Codex reali: tre thread distinti con ruoli separati e tre personaggi; prompt per reparto; coordinatore in un quarto thread reale, senza avviare una ricerca alla creazione; handoff da storico ufficiale Discovery → Intelligence, risposta reale del destinatario, arresto per company_id mancanti e duplicato respinto; 15 righe reali dello snapshot visibili e nessuna eccezione browser.
+- I test del bridge sono ora **5 passati**, compresi vincoli dei ruoli e handoff. Ripetuti con successo build completa, lint/typecheck e i 195 test frontend. Nessuna esecuzione commerciale completa della pipeline viene dichiarata collaudata.
+- Il test dell’agenzia usa una porta locale separata, senza fermare il servizio o le altre sessioni dell’operatore. I permessi operativi sono una scelta esplicita per le nuove sessioni; il full access resta escluso.
+
 ## Non collaudato / non disponibile
 
-- Lettura autenticata del Master Leads: manca un file di credenziali Google locale già autorizzato. Non è dichiarata una sincronizzazione riuscita e non esiste una funzione di scrittura.
+- Lettura Live del Master dal backend dedicato: non collaudata. La sincronizzazione dei 15 risultati tramite il connettore di questa chat è riuscita; il servizio locale mantiene la dashboard in sola lettura e lo snapshot non viene presentato come lettura Live.
 - Riuso del connettore Google già autorizzato nella chat/app Codex: provati i metodi ufficiali `mcpServerStatus/list` e `app/list` in un processo dedicato. Entrambi hanno raggiunto il timeout di 30 secondi. Non si deduce indisponibilità permanente e non si dichiara un collegamento backend riuscito. Nessun account, progetto Cloud, login o token nuovo è stato creato; alternative con il proprio account documentate.
 - Deploy nell’account Netlify e collegamento da una sua origine HTTPS: non effettuati. La configurazione è pronta sul branch; restano da verificare impostazioni effettive del sito e autorizzazioni di rete locale del browser.
 - Esecuzione completa delle tre skill, relativa pipeline e sottofasi commerciali: volutamente non avviate durante lo sviluppo. La lettura di SKILL.md non viene dichiarata completamento di una skill.

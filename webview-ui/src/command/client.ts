@@ -12,6 +12,9 @@ export interface OfficeThread {
   status: string;
   activeTurn?: string | null;
   sandbox: string;
+  role?: string | null;
+  label?: string;
+  teamId?: string | null;
   phase?: { name: string; evidence: string; itemId: string } | null;
 }
 export interface OfficeSkill {
@@ -19,6 +22,14 @@ export interface OfficeSkill {
   path?: string;
   description?: string;
   unavailable?: boolean;
+}
+export interface OfficeRole {
+  id: string;
+  name: string;
+  skill?: string;
+  skills?: string[];
+  description: string;
+  example: string;
 }
 export interface Approval {
   id: string | number;
@@ -42,6 +53,7 @@ export interface OfficeSnapshot {
   cursor: number;
   threads: OfficeThread[];
   skills: OfficeSkill[];
+  roles?: OfficeRole[];
   models?: Array<{ model: string; displayName: string; isDefault: boolean }>;
   approvals: Approval[];
   events: OfficeEvent[];
@@ -58,7 +70,12 @@ let snapshot: OfficeSnapshot = {
 let secret = '';
 let running = false;
 let generation = 0;
-const endpoint = 'http://127.0.0.1:4318';
+const endpoint =
+  window.location.hostname === '127.0.0.1' &&
+  window.location.port &&
+  window.location.port !== '5173'
+    ? window.location.origin
+    : 'http://127.0.0.1:4318';
 export const subscribe = (listener: () => void) => {
   listeners.add(listener);
   return () => {

@@ -31,7 +31,6 @@ export function BottomToolbar({
   onAddDirectory,
   onEditDirectory,
   terminalAvailable,
-  terminalUnavailableReason,
 }: BottomToolbarProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const launchRef = useRef<HTMLDivElement>(null);
@@ -73,11 +72,11 @@ export function BottomToolbar({
     <div className="absolute left-10 bottom-10 z-20 flex items-center gap-4 pixel-panel p-4">
       {showUnavailable && (
         <Button
-          variant="disabled"
-          disabled
-          title={terminalUnavailableReason ?? 'Terminal unavailable on this server.'}
+          variant="default"
+          onClick={() => window.dispatchEvent(new Event('office-open-agency'))}
+          title="Apri il pannello Agenzia per creare sessioni Codex reali"
         >
-          + Agent
+          + Codex
         </Button>
       )}
       {canLaunch && (
