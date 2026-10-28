@@ -50,3 +50,7 @@ agent-orchestrator.yaml
 .ao/
 .serena/
 tasks/
+# Local bridge history, credentials, generated protocol inspection
+.office/
+.local-schema/
+office/*.local.*

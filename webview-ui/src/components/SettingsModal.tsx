@@ -72,6 +72,53 @@ export function SettingsModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [assetDirDraft, setAssetDirDraft] = useState('');
 
+  if (isBrowserRuntime)
+    return (
+      <Modal isOpen={isOpen} onClose={onClose} title="Impostazioni ufficio">
+        <MenuItem
+          onClick={() => {
+            onExportLayout();
+            onClose();
+          }}
+        >
+          Esporta layout
+        </MenuItem>
+        <MenuItem onClick={() => fileInputRef.current?.click()}>Importa layout</MenuItem>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (file) {
+              onImportLayout(file);
+              onClose();
+            }
+          }}
+        />
+        <Checkbox
+          label="Notifiche sonore"
+          checked={soundLocal}
+          onChange={() => {
+            const next = !isSoundEnabled();
+            setSoundEnabled(next);
+            setSoundLocal(next);
+          }}
+        />
+        <Checkbox
+          label="Mostra etichette"
+          checked={alwaysShowOverlay}
+          onChange={onToggleAlwaysShowOverlay}
+        />
+        {showAreasAvailable && (
+          <Checkbox label="Mostra aree" checked={showAreas} onChange={onToggleShowAreas} />
+        )}
+        <Checkbox label="Debug grafico" checked={isDebugMode} onChange={onToggleDebugMode} />
+      </Modal>
+    );
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Settings">
       {/* Open Sessions Folder opens an OS file manager — impossible in the browser. */}

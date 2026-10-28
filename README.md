@@ -1,3 +1,18 @@
+# AI PM Lab Virtual Office
+
+Command Center reale per Codex, mantenendo Canvas, ufficio, personaggi ed editor di Pixel Agents.
+
+Avvio: `npm ci`, `npm run build:webview`, `npm run office`, quindi aprire `http://127.0.0.1:4318` e inserire il token stampato nel terminale.
+
+- [Installazione, architettura, sicurezza, skill, Sheets e Netlify](docs/virtual-office.md)
+- [Funzionalità effettivamente collaudate e limiti](docs/virtual-office-verification.md)
+
+Nessun dato o agente dimostrativo nel runtime browser. La lettura autenticata Google Sheets e il deploy nell’account Netlify richiedono ancora verifica con l’accesso dell’operatore.
+
+---
+
+La documentazione originale Pixel Agents è conservata di seguito.
+
 <h1 align="center">
   <a href="https://github.com/pixel-agents-hq/pixel-agents/discussions">
     <img src="webview-ui/public/banner.png" alt="Pixel Agents">

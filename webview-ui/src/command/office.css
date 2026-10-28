@@ -1,0 +1,463 @@
+.command-center {
+  height: 100%;
+  overflow: auto;
+  background: #0a101b;
+  color: #dce7f6;
+  font:
+    14px/1.5 'Segoe UI',
+    Arial,
+    sans-serif;
+  --color-accent: #167d91;
+  --color-accent-bright: #27a5ae;
+  --color-bg: #101c2b;
+  --color-bg-dark: #0b1421;
+  --color-border: #26384d;
+}
+.command-center button,
+.command-center input,
+.command-center textarea,
+.command-center select {
+  font: inherit;
+}
+.command-center button {
+  cursor: pointer;
+  border: 1px solid #2b4055;
+  background: #152235;
+  color: #e0eaf7;
+  border-radius: 7px;
+  padding: 7px 11px;
+}
+.command-center button:hover {
+  background: #22354b;
+}
+.command-center button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.command-center input,
+.command-center textarea,
+.command-center select {
+  background: #0b1523;
+  border: 1px solid #304058;
+  color: #e1eaf5;
+  border-radius: 7px;
+  padding: 8px;
+  width: 100%;
+}
+.command-center :focus-visible {
+  outline: 2px solid #63d6cc;
+  outline-offset: 3px;
+}
+.command-center pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font:
+    12px/1.6 Consolas,
+    monospace;
+  margin: 7px 0;
+}
+.command-center h1,
+.command-center h2,
+.command-center h3,
+.command-center p {
+  margin: 0;
+}
+.command-center h2 {
+  font-size: 15px;
+  font-weight: 650;
+}
+.command-center a {
+  color: #6ddbd2;
+}
+.command-center small,
+.command-center .muted {
+  color: #8eabc3;
+  font-size: 11px;
+}
+.command-center p {
+  margin: 9px 0;
+}
+.command-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 24px;
+  border-bottom: 1px solid #223145;
+  background: #101a28;
+}
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid #68cbbd;
+  background: #18383e;
+  color: #a1f5d9;
+  font-size: 20px;
+  font-weight: 800;
+  border-radius: 10px;
+}
+.command-header h1 {
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: 1.3px;
+}
+.command-header h1 span {
+  color: #7b9cb4;
+  font-size: 11px;
+  margin-left: 12px;
+  font-weight: 500;
+}
+.command-header p {
+  font-size: 11px;
+  color: #8ba5bf;
+  margin: 3px 0;
+}
+.connection {
+  margin-left: auto;
+  color: #e49c83;
+  background: #382724;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+}
+.connection.online {
+  color: #91e0ba;
+  background: #12352d;
+}
+.pairing {
+  padding: 14px 24px;
+  background: #172234;
+  border-bottom: 1px solid #2d4156;
+  display: flex;
+  align-items: end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.pairing label {
+  font-size: 12px;
+  min-width: 310px;
+}
+.pairing small {
+  max-width: 350px;
+}
+.command-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 390px;
+  min-height: calc(100% - 76px);
+}
+.office-column {
+  min-width: 0;
+  border-right: 1px solid #253449;
+}
+.office-heading {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 20px;
+  font-size: 10px;
+  letter-spacing: 1.3px;
+  color: #8ca6bb;
+}
+.pixel-office {
+  height: 52vh;
+  min-height: 350px;
+  position: relative;
+  background: #101725;
+  border-block: 1px solid #203148;
+  font-family: 'FS Pixel Sans', sans-serif;
+}
+.pixel-office > div {
+  height: 100%;
+}
+.stations {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 12px 16px;
+}
+.command-center .station {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  text-align: left;
+  padding: 12px 10px;
+  background: #111f30;
+  border-color: #22394c;
+}
+.station-number {
+  color: #53cdbd;
+  font:
+    19px Consolas,
+    monospace;
+}
+.station strong {
+  display: block;
+  font-size: 12px;
+}
+.station small {
+  display: block;
+  font-size: 10px;
+  margin-top: 4px;
+}
+.command-center .station.working {
+  border-color: #59d5be;
+  background: #103330;
+}
+.command-tabs {
+  display: flex;
+  gap: 5px;
+  padding: 8px 16px;
+  border-block: 1px solid #24344a;
+}
+.command-center .current {
+  background: #1e4050;
+  color: #9ae6df;
+  border-color: #386873;
+}
+.data-panel {
+  padding: 16px 20px;
+  max-height: 420px;
+  min-height: 220px;
+  overflow: auto;
+}
+.panel-heading {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.panel-heading span {
+  color: #5fcbbe;
+  font-size: 9px;
+  letter-spacing: 1px;
+  margin-left: 8px;
+}
+.panel-heading > span {
+  color: #8ca6bb;
+}
+.event-list details,
+.data-panel > details {
+  border-bottom: 1px solid #1d2e42;
+  padding: 7px 0;
+}
+.command-center summary {
+  cursor: pointer;
+  font:
+    11px/1.7 Consolas,
+    monospace;
+  color: #a6bfd3;
+}
+.command-center time {
+  color: #5f839e;
+  margin-right: 12px;
+}
+.chat-column {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(100vh - 76px);
+  position: sticky;
+  top: 0;
+  background: #0e1826;
+  min-height: 600px;
+}
+.chat-log {
+  flex: 1;
+  overflow: auto;
+  min-height: 150px;
+}
+.empty {
+  color: #7e9bb3;
+  padding: 28px 10px;
+}
+.empty h3 {
+  font-size: 17px;
+  font-weight: 500;
+  color: #bfd0e0;
+}
+.chat-message {
+  padding: 12px;
+  margin: 10px 0;
+  border-radius: 8px;
+  background: #142237;
+  border: 1px solid #26384f;
+}
+.chat-message.userMessage {
+  background: #163232;
+  border-color: #26504a;
+}
+.chat-message small {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: #69cfc1;
+}
+.chat-compose {
+  border-top: 1px solid #293b51;
+  padding-top: 12px;
+  display: grid;
+  gap: 9px;
+}
+.chat-compose label {
+  font-size: 10px;
+  color: #95b1c7;
+}
+.chat-compose select {
+  margin-top: 5px;
+}
+.chat-compose textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+.actions {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.command-center .primary {
+  background: #216a70;
+  border-color: #318b8d;
+}
+.approval {
+  max-height: 300px;
+  overflow: auto;
+  background: #362c1c;
+  border: 1px solid #8a6b37;
+  border-radius: 8px;
+  padding: 12px;
+}
+.approval strong {
+  color: #f1cd92;
+}
+.approval label {
+  display: block;
+}
+.command-error {
+  color: #f6b6a5;
+  background: #3b2325;
+  border: 1px solid #85564e;
+  border-radius: 7px;
+  padding: 10px;
+}
+.history-row {
+  display: flex;
+  gap: 10px;
+  margin: 8px 0;
+}
+.table-scroll {
+  overflow: auto;
+  margin-top: 12px;
+  max-height: 260px;
+}
+.command-center table {
+  border-collapse: collapse;
+  font-size: 11px;
+  min-width: 100%;
+}
+.command-center th,
+.command-center td {
+  text-align: left;
+  padding: 7px 12px;
+  border: 1px solid #2a3e53;
+  max-width: 280px;
+  overflow-wrap: anywhere;
+}
+.command-center th {
+  position: sticky;
+  top: 0;
+  background: #1b3044;
+}
+.data-panel > input {
+  margin-top: 12px;
+}
+@media (max-width: 1000px) {
+  .command-main {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+  .stations {
+    grid-template-columns: 1fr;
+  }
+  .station small {
+    display: inline;
+    margin-left: 8px;
+  }
+  .pixel-office {
+    height: 45vh;
+  }
+}
+@media (max-width: 720px) {
+  .command-main {
+    display: flex;
+    flex-direction: column;
+  }
+  .chat-column {
+    position: static;
+    max-height: none;
+    min-height: 700px;
+  }
+  .chat-log {
+    max-height: 400px;
+  }
+  .command-header {
+    padding: 12px;
+  }
+  .command-header h1 span {
+    display: block;
+    margin: 0;
+  }
+  .command-header > button {
+    display: none;
+  }
+  .connection {
+    font-size: 10px;
+  }
+  .command-tabs {
+    overflow: auto;
+  }
+  .command-tabs button {
+    white-space: nowrap;
+  }
+  .pairing {
+    padding: 12px;
+  }
+  .pairing label {
+    min-width: 0;
+    width: 100%;
+  }
+  .pixel-office {
+    height: 430px;
+  }
+}
+.station-markers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.station-markers span {
+  position: absolute;
+  top: 0;
+  left: 0;
+  white-space: nowrap;
+  font:
+    10px Segoe UI,
+    sans-serif;
+  background: #102633dc;
+  border: 1px solid #366572;
+  color: #a5eee1;
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+.command-center * {
+  font-family: inherit;
+}
+.command-center .pixel-office {
+  font-family: 'FS Pixel Sans', sans-serif;
+}
+.command-center .material-symbols-sharp {
+  font-family: 'Material Symbols Sharp';
+}
+.command-center pre {
+  font-family: Consolas, monospace;
+}

@@ -26,7 +26,7 @@ interface DecodedCache {
 
 // ── Vite plugin ───────────────────────────────────────────────────────────────
 
-function browserMockAssetsPlugin(): Plugin {
+function officeAssetsPlugin(): Plugin {
   const assetsDir = path.resolve(__dirname, 'public/assets');
   // Default for production builds; configResolved below rewrites this to
   // track the actual build.outDir, so vite build calls that override outDir
@@ -50,7 +50,7 @@ function browserMockAssetsPlugin(): Plugin {
   }
 
   return {
-    name: 'browser-mock-assets',
+    name: 'office-assets',
     configResolved(config) {
       distAssetsDir = path.resolve(config.root, config.build.outDir, 'assets');
     },
@@ -115,12 +115,18 @@ function browserMockAssetsPlugin(): Plugin {
         path.join(distAssetsDir, 'asset-index.json'),
         JSON.stringify(buildAssetIndex(assetsDir)),
       );
+      const decodedDir = path.join(distAssetsDir, 'decoded');
+      fs.mkdirSync(decodedDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(decodedDir, 'carpets.json'),
+        JSON.stringify(decodeAllCarpets(assetsDir)),
+      );
     },
   };
 }
 
 export default defineConfig({
-  plugins: [tailwindcss(), react(), browserMockAssetsPlugin()],
+  plugins: [tailwindcss(), react(), officeAssetsPlugin()],
   server: {
     // Dev-only: allow reaching `vite --host` from another device on a
     // Tailscale network (Vite rejects non-localhost Host headers by default).

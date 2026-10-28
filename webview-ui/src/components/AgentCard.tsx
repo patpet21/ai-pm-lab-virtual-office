@@ -1,3 +1,4 @@
+import { isBrowserRuntime } from '../runtime.js';
 import type { CardVariant } from './cardBar.js';
 import { CharacterMugShot } from './CharacterMugShot.js';
 import { Button } from './ui/Button.js';
@@ -48,7 +49,7 @@ export function AgentCard({
   variant,
   appearance,
   status,
-  showClose = true,
+  showClose = !isBrowserRuntime,
   onSelect,
   onClose,
 }: AgentCardProps) {

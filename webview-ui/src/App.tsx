@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import { toMajorMinor } from './changelogData.js';
+import { getSnapshot, subscribe } from './command/client';
+import { StationMarkers } from './command/StationMarkers';
+import { stationSeats } from './command/stations';
 import { AgentCardBar } from './components/AgentCardBar.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { ChangelogModal } from './components/ChangelogModal.js';
@@ -43,6 +46,7 @@ import { EditTool, type OfficeLayout, TILE_SIZE } from './office/types.js';
 import { isBrowserRuntime, isE2E } from './runtime.js';
 import { installTestHooks } from './testHooks.js';
 import { transport } from './transport/index.js';
+import { OfficeTransport } from './transport/officeTransport';
 
 // Game state lives outside React — updated imperatively by message handlers
 const officeStateRef = { current: null as OfficeState | null };
@@ -61,17 +65,35 @@ function getOfficeState(): OfficeState {
 }
 
 function App() {
-  // Browser runtime (dev or static dist): dispatch mock messages after the
-  // useExtensionMessages listener has been registered.
   useEffect(() => {
-    // browserMock is for Vite dev mode only (UI prototyping without a server).
-    // In standalone server mode, the server sends all state over WebSocket.
-    // In VS Code mode, the extension sends all state via postMessage.
-    if (isBrowserRuntime && import.meta.env.DEV) {
-      void import('./browserMock.js').then(({ dispatchMockMessages }) => dispatchMockMessages());
-    }
+    if (!(transport instanceof OfficeTransport)) return;
+    const officeTransport = transport;
+    return subscribe(() => {
+      const state = getSnapshot();
+      const office = getOfficeState();
+      const seats = stationSeats(office).map((seat) => seat.uid);
+      const skills = [
+        'ai-pm-lead-discovery',
+        'ai-pm-business-intelligence',
+        'ai-pm-campaign-readiness',
+      ];
+      for (const thread of state.threads) {
+        if (!thread.loaded || !state.connected || thread.status !== 'inProgress' || !thread.phase)
+          continue;
+        const index = skills.indexOf(thread.phase.name);
+        const seatId = seats[index];
+        const id = officeTransport.idFor(thread.id);
+        const character = office.characters.get(id);
+        if (
+          seatId &&
+          character &&
+          character.seatId !== seatId &&
+          !office.seats.get(seatId)?.assigned
+        )
+          office.reassignSeat(id, seatId);
+      }
+    });
   }, []);
-
   const editor = useEditorActions(getOfficeState, editorState);
 
   const isEditDirty = useCallback(
@@ -274,6 +296,13 @@ function App() {
   const isEditingAreas = editor.isEditMode && editorState.activeTool === EditTool.AREA_PAINT;
   const effectiveShowAreas = isEditingAreas || showAreas;
   const activeAreaLabel = isEditingAreas ? editor.selectedAreaLabel : null;
+  const {
+    handleEditorTileAction: testTileAction,
+    handleEditorEraseAction: testEraseAction,
+    handleDrop: testDrop,
+    zoom: testZoom,
+    panRef: testPanRef,
+  } = editor;
 
   // e2e: register the component-scoped editor-action drivers + the effective
   // show-areas gate on the test-hooks namespace (module-load installTestHooks
@@ -284,18 +313,17 @@ function App() {
   useEffect(() => {
     if (!isE2E || typeof window === 'undefined') return;
     const hooks = (window.__pixelAgentsTestHooks ??= {});
-    hooks.editorTileAction = (col, row) => editor.handleEditorTileAction(col, row);
-    hooks.editorEraseAction = (col, row) => editor.handleEditorEraseAction(col, row);
-    hooks.editorDrop = (uid, col, row, duplicate = false) =>
-      editor.handleDrop(uid, col, row, { duplicate });
+    hooks.editorTileAction = (col, row) => testTileAction(col, row);
+    hooks.editorEraseAction = (col, row) => testEraseAction(col, row);
+    hooks.editorDrop = (uid, col, row, duplicate = false) => testDrop(uid, col, row, { duplicate });
     hooks.getTileCenter = (col, row) => {
       const canvas = document.querySelector(`[data-testid="${OFFICE_CANVAS_TEST_ID}"]`);
       if (!canvas) return null;
       const projection = overlayProjection(
         getOfficeState().getLayout(),
         canvas.getBoundingClientRect(),
-        editor.zoom,
-        editor.panRef.current,
+        testZoom,
+        testPanRef.current,
         window.devicePixelRatio || 1,
       );
       return {
@@ -304,14 +332,7 @@ function App() {
       };
     };
     hooks.getShowAreas = () => effectiveShowAreas;
-  }, [
-    editor.handleEditorTileAction,
-    editor.handleEditorEraseAction,
-    editor.handleDrop,
-    editor.zoom,
-    editor.panRef,
-    effectiveShowAreas,
-  ]);
+  }, [testTileAction, testEraseAction, testDrop, testZoom, testPanRef, effectiveShowAreas]);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -491,6 +512,9 @@ function App() {
         activeAreaLabel={activeAreaLabel}
         tapSelectsFirst={isMobile}
       />
+      {isBrowserRuntime && (
+        <StationMarkers office={officeState} zoom={editor.zoom} panRef={editor.panRef} />
+      )}
 
       {!isDebugMode ? (
         <>

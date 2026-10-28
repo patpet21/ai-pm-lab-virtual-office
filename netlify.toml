@@ -1,0 +1,16 @@
+[build]
+  base = "."
+  command = "npm run build:webview"
+  publish = "dist/webview"
+
+[build.environment]
+  NODE_VERSION = "22"
+  HUSKY = "0"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+    X-Frame-Options = "DENY"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' http://127.0.0.1:4318; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
