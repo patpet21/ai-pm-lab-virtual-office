@@ -2,14 +2,14 @@
 
 Command Center reale per Codex, mantenendo Canvas, ufficio, personaggi ed editor di Pixel Agents.
 
-Il pannello Agenzia offre specialisti in sessioni reali separate, prompt d’esempio, stato e chat per reparto, passaggio verificabile dei risultati e un coordinatore singolo per la pipeline completa. I dati reali sincronizzati tramite il connettore Codex possono essere mostrati come snapshot datato; il backend Live resta distinto.
+Il pannello Agenzia offre specialisti in sessioni reali separate, prompt d’esempio, stato e chat per reparto, passaggio dei risultati e un coordinatore singolo per la pipeline completa. Include permessi in un dialogo centrale, chat espandibile, brief di ricerca e controlli strutturali delle opportunità. Il Master viene letto live attraverso il connettore Codex già autorizzato, senza nuove credenziali; un eventuale snapshot è esplicitamente datato e distinto.
 
 Avvio: `npm ci`, `npm run build:webview`, `npm run office`, quindi aprire `http://127.0.0.1:4318` e inserire il token stampato nel terminale.
 
 - [Installazione, architettura, sicurezza, skill, Sheets e Netlify](docs/virtual-office.md)
 - [Funzionalità effettivamente collaudate e limiti](docs/virtual-office-verification.md)
 
-Nessun dato o agente dimostrativo nel runtime browser. La lettura autenticata Google Sheets e il deploy nell’account Netlify richiedono ancora verifica con l’accesso dell’operatore.
+Nessun dato o agente dimostrativo nel runtime browser. Lettura autenticata delle cinque tab verificata via API locale e browser il 29 ottobre 2026. Il deploy nell’account Netlify e la qualità commerciale di una nuova ricerca non sono stati collaudati in questo aggiornamento.
 
 ---
 

@@ -6,13 +6,17 @@ export class CodexProvider extends EventEmitter {
   pending = new Map();
   sequence = 0;
   connected = false;
-  constructor({ cwd, executable = process.env.CODEX_BIN || 'codex' }) {
+  constructor({ cwd, executable = process.env.CODEX_BIN || 'codex', enableApps = true }) {
     super();
-    this.process = spawn(executable, ['app-server', '--listen', 'stdio://'], {
-      cwd,
-      windowsHide: true,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    this.process = spawn(
+      executable,
+      ['app-server', '--listen', 'stdio://', ...(enableApps ? ['--enable', 'apps'] : [])],
+      {
+        cwd,
+        windowsHide: true,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    );
     const lines = createInterface({ input: this.process.stdout });
     lines.on('line', (line) => {
       let message;
@@ -51,13 +55,13 @@ export class CodexProvider extends EventEmitter {
       throw new Error('Codex Disconnected');
     this.process.stdin.write(JSON.stringify(message) + '\n');
   }
-  request(method, params = {}) {
+  request(method, params = {}, timeoutMs = 30000) {
     return new Promise((resolve, reject) => {
       const id = ++this.sequence;
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(`Codex timeout: ${method}`));
-      }, 30000);
+      }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
       try {
         this.send({ id, method, params });
@@ -68,13 +72,14 @@ export class CodexProvider extends EventEmitter {
       }
     });
   }
-  async initialize() {
+  async initialize({ experimentalApi = false } = {}) {
     const result = await this.request('initialize', {
       clientInfo: {
         name: 'ai_pm_lab_virtual_office',
         title: 'AI PM Lab Virtual Office',
         version: '1.0.0',
       },
+      ...(experimentalApi ? { capabilities: { experimentalApi: true } } : {}),
     });
     this.send({ method: 'initialized', params: {} });
     this.connected = true;

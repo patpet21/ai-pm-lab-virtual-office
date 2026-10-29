@@ -143,7 +143,7 @@
 }
 .command-main {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 390px;
+  grid-template-columns: minmax(0, 1fr) clamp(390px, 34vw, 560px);
   min-height: calc(100% - 76px);
 }
 .office-column {
@@ -216,7 +216,7 @@
 }
 .data-panel {
   padding: 16px 20px;
-  max-height: 420px;
+  max-height: 720px;
   min-height: 220px;
   overflow: auto;
 }
@@ -319,20 +319,6 @@
   background: #216a70;
   border-color: #318b8d;
 }
-.approval {
-  max-height: 300px;
-  overflow: auto;
-  background: #362c1c;
-  border: 1px solid #8a6b37;
-  border-radius: 8px;
-  padding: 12px;
-}
-.approval strong {
-  color: #f1cd92;
-}
-.approval label {
-  display: block;
-}
 .command-error {
   color: #f6b6a5;
   background: #3b2325;
@@ -384,6 +370,292 @@
   }
   .pixel-office {
     height: 45vh;
+  }
+}
+.command-center.approval-portal {
+  height: 0;
+  overflow: visible;
+}
+.approval-dialog {
+  width: min(900px, calc(100vw - 32px));
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  margin: auto;
+  color: #e3ebf5;
+  background: #111e2e;
+  border: 1px solid #d6a85e;
+  border-radius: 14px;
+  box-shadow: 0 24px 100px #000a;
+  overflow: hidden;
+}
+.approval-dialog::backdrop {
+  background: #030913cf;
+  backdrop-filter: blur(4px);
+}
+.approval-dialog .approval {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 34px);
+}
+.approval-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 24px 28px 8px;
+}
+.approval-heading small {
+  color: #e5bb7c;
+  letter-spacing: 1.5px;
+}
+.approval-heading h2 {
+  font-size: 26px;
+  margin-top: 6px;
+}
+.approval-session {
+  padding: 0 28px 12px;
+  color: #a4bad0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.approval-content {
+  overflow: auto;
+  padding: 0 28px 16px;
+  min-height: 0;
+}
+.approval-content > div {
+  margin-bottom: 18px;
+}
+.approval-reason {
+  background: #263240;
+  padding: 16px;
+  border-radius: 8px;
+}
+.approval-dialog pre {
+  font-size: 14px;
+  padding: 14px;
+  background: #09121e;
+  border-radius: 8px;
+}
+.approval-content fieldset {
+  border: 1px solid #405d71;
+  border-radius: 8px;
+  margin: 16px 0;
+  padding: 16px;
+}
+.approval-content fieldset button {
+  display: block;
+  text-align: left;
+  margin-bottom: 10px;
+  width: 100%;
+}
+.approval-content fieldset button span {
+  display: block;
+  color: #9fb6ca;
+}
+.approval-content textarea {
+  min-height: 90px;
+}
+.approval-actions {
+  flex-shrink: 0;
+  border-top: 1px solid #395066;
+  background: #182738;
+  padding: 12px 28px 24px;
+}
+.approval-actions p {
+  color: #b7c9d9;
+  font-size: 12px;
+}
+.approval-actions button {
+  min-height: 46px;
+  padding: 10px 20px;
+  font-weight: 600;
+}
+.approval-alert {
+  position: fixed;
+  bottom: 20px;
+  right: 24px;
+  z-index: 9999;
+  background: #573b19 !important;
+  border-color: #d6a85e !important;
+  box-shadow: 0 6px 32px #0009;
+  text-align: left;
+}
+.approval-alert span {
+  display: block;
+  font-size: 12px;
+}
+.session-settings {
+  border: 1px solid #2c4057;
+  border-radius: 8px;
+  padding: 8px;
+}
+.session-settings summary {
+  font-family: inherit;
+  font-size: 12px;
+}
+.session-settings label {
+  display: block;
+  font-size: 12px;
+  margin-top: 8px;
+}
+.session-settings > select {
+  margin-top: 10px;
+}
+.role-binding {
+  color: #9eb6ca;
+  font-size: 11px;
+}
+.role-binding strong {
+  color: #96dfd6;
+  display: block;
+  font-size: 12px;
+}
+.command-center .brief-shortcut {
+  text-align: left;
+  font-size: 12px;
+}
+.command-center.chat-expanded .command-main {
+  grid-template-columns: 1fr;
+}
+.command-center.chat-expanded .office-column {
+  display: none;
+}
+.command-center.chat-expanded .chat-column {
+  width: min(1100px, 100%);
+  margin: 0 auto;
+  height: calc(100dvh - 76px);
+  min-height: 0;
+}
+.command-center.chat-expanded .chat-log {
+  min-height: 0;
+}
+.research-brief fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.research-brief label {
+  display: block;
+  font-size: 12px;
+  color: #abc1d5;
+  margin: 10px 0;
+}
+.research-brief label input,
+.research-brief label select,
+.research-brief label textarea {
+  margin-top: 5px;
+}
+.research-brief textarea {
+  min-height: 64px;
+  resize: vertical;
+}
+.brief-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+}
+.destination-note,
+.google-access,
+.research-audit {
+  border: 1px solid #47606c;
+  padding: 14px;
+  border-radius: 8px;
+  background: #142632;
+  margin: 14px 0;
+}
+.google-access p,
+.research-audit {
+  font-size: 12px;
+}
+.research-audit h3 {
+  font-size: 14px;
+}
+.audit-counts {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.audit-counts > span {
+  flex: 1;
+  min-width: 130px;
+  color: #b1c2d3;
+}
+.audit-counts strong {
+  display: block;
+  font-size: 22px;
+  color: #f3cb85;
+}
+.research-audit details {
+  margin-bottom: 10px;
+}
+.sheet-operations {
+  padding: 14px;
+  margin: 12px 0;
+  background: #142632;
+  border: 1px solid #2c505a;
+  border-radius: 8px;
+}
+.sheet-operations h3 {
+  font-size: 14px;
+}
+.sheet-operations details {
+  border-top: 1px solid #2c4057;
+  padding: 7px 0;
+}
+@media (max-width: 720px) {
+  .approval-dialog {
+    width: calc(100vw - 16px);
+    max-width: none;
+    max-height: calc(100dvh - 16px);
+  }
+  .approval-dialog .approval {
+    max-height: calc(100dvh - 18px);
+  }
+  .approval-heading {
+    padding: 18px 16px 8px;
+  }
+  .approval-heading h2 {
+    font-size: 22px;
+  }
+  .approval-heading small {
+    font-size: 9px;
+  }
+  .approval-session {
+    padding: 0 16px 8px;
+  }
+  .approval-content {
+    padding: 0 16px 8px;
+  }
+  .approval-actions {
+    padding: 10px 16px 16px;
+  }
+  .approval-actions .actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .approval-actions .primary {
+    grid-column: 1 / -1;
+  }
+  .approval-alert {
+    right: 12px;
+    left: 12px;
+    bottom: 12px;
+  }
+  .brief-grid {
+    grid-template-columns: 1fr;
+  }
+  .command-header {
+    flex-wrap: wrap;
+  }
+  .command-header > button {
+    display: block;
+  }
+  .command-center.chat-expanded .chat-column {
+    min-height: 600px;
+    height: calc(100dvh - 130px);
   }
 }
 @media (max-width: 720px) {

@@ -11,6 +11,8 @@ export interface OfficeThread {
   loaded: boolean;
   status: string;
   activeTurn?: string | null;
+  hasHistory?: boolean;
+  lastBrief?: import('./researchSettings').ResearchSettings;
   sandbox: string;
   role?: string | null;
   label?: string;
@@ -91,7 +93,7 @@ export async function api<T>(path: string, data?: unknown): Promise<T> {
   const response = await fetch(endpoint + '/api/' + path, {
     method: data === undefined ? 'GET' : 'POST',
     cache: 'no-store',
-    signal: AbortSignal.timeout(path.startsWith('state?') ? 5000 : 35000),
+    signal: AbortSignal.timeout(path.startsWith('state?') ? 5000 : path === 'sheets' ? 65000 : 35000),
     headers: {
       Authorization: `Bearer ${secret}`,
       ...(data === undefined ? {} : { 'Content-Type': 'application/json' }),

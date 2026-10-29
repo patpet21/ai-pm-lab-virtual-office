@@ -12,7 +12,7 @@ export const roles = [
     description:
       'Trova nuove aziende ed email pubblicate, deduplica e sincronizza Companies e Contacts.',
     example:
-      'Trova 10 aziende nuove e contattabili tra property manager e contractor a Brooklyn e Queens. Leggi il Master attuale, rispetta soppressioni, verifica le email su fonti ufficiali e sincronizza Companies, Contacts e Research Log. Riporta company_id, fonti e stato sync verificato. Non eseguire le altre skill.',
+      'Trova aziende nuove e contattabili seguendo quantità, area, settori ed esclusioni del Brief di ricerca. Leggi il Master attuale, rispetta soppressioni, verifica le email su fonti ufficiali e sincronizza Companies, Contacts e Research Log secondo la destinazione scelta. Riporta company_id, fonti, scarti e stato sync verificato. Non eseguire le altre skill.',
   },
   {
     id: 'intelligence',
@@ -38,7 +38,7 @@ export const roles = [
     description:
       'Una sessione reale coordina le tre skill in ordine, con gli stessi company_id e lo stesso Master.',
     example:
-      'Esegui la pipeline completa AI PM Lab: 1) trova 10 aziende net-new contattabili a NYC e sincronizzale nel Master; 2) valuta soltanto le aziende appena aggiunte usando gli stessi company_id; 3) prepara un solo contatto per azienda qualificata nella Campaign Queue con pending_review. Esegui le tre skill in ordine. Se una fase resta pending_sync o manca un handoff verificabile, fermati e segnala il blocco. Riporta risultati distinti per fase. Nessun invio email, messaggi o follow-up.',
+      'Esegui la pipeline completa AI PM Lab seguendo il Brief di ricerca: 1) trova aziende net-new pertinenti e contattabili e sincronizzale nel Master secondo la destinazione scelta; 2) valuta soltanto le aziende appena aggiunte usando gli stessi company_id; 3) prepara un solo contatto per azienda qualificata nella Campaign Queue con pending_review. Non passare automaticamente alla coda se mancano evidenze sul primo incarico. Esegui le tre skill in ordine. Se una fase resta pending_sync o manca un handoff verificabile, fermati e segnala il blocco. Riporta risultati distinti per fase e scarti motivati. Nessun invio email, messaggi o follow-up.',
   },
 ];
 
@@ -47,6 +47,15 @@ export function roleFor(id) {
   const role = roles.find((row) => row.id === id);
   if (!role) throw new Error('Ruolo non valido');
   return role;
+}
+
+export function requestedSkills(thread, selected) {
+  const role = roleFor(thread.role || undefined);
+  if (role && selected && selected !== role.skill)
+    throw new Error(
+      `Questa sessione è ${role.name}: seleziona lo specialista corretto o un coordinatore per cambiare funzione.`,
+    );
+  return selected ? [selected] : role?.skills || (role?.skill ? [role.skill] : []);
 }
 
 export function handoffText(source, target, turn) {

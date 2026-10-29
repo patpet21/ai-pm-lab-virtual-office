@@ -1,4 +1,34 @@
-# Verifica effettiva — 28 ottobre 2026
+# Verifica effettiva — 29 ottobre 2026
+
+Aggiornamento collaudato su Windows, Node 22.22.2, Codex CLI 0.144.6 e Edge headless. Nessuna ricerca commerciale avviata, nessuna riga del Master modificata durante questo aggiornamento, nessuna email inviata. Le tre skill globali e la configurazione globale Codex non sono state modificate. Il servizio dell’operatore sulla porta 4318 non è stato interrotto.
+
+| Controllo               | Esito del 29 ottobre                                                                                                                                                                                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Build completa          | `npm run build` riuscita: generazione contratti, typecheck, lint e bundle.                                                                                                                                                                                   |
+| Test frontend           | 195 passati su 20 file. Primo tentativo bloccato dal sandbox con EPERM sui temporanei, prima di eseguire test; ripetizione fuori sandbox riuscita.                                                                                                           |
+| Test bridge / package   | 7 test bridge e 7 test contratto package passati.                                                                                                                                                                                                            |
+| Permessi reali          | Richiesta ufficiale di Get-Location, dialogo centrale da 900 px, riduzione e riapertura senza perdere il pending, Esc senza consenso, viewport mobile 390×844 con pulsanti visibili, rifiuto e conclusione osservati.                                        |
+| Browser completo        | Canvas, editor, zero personaggi da disconnesso, chat reale, vista espansa, invio effettivo del brief, caricamento storico senza duplicazione del risultato tecnico e disconnessione passati, nessuna eccezione browser.                                      |
+| Google Live dal backend | `node office/google-live-check.mjs` passato: metadati e tutte le cinque tab tramite il connettore esistente e l’API locale autenticata, senza nuovi segreti, turni commerciali o scritture. Verificata anche la copia snapshot reale prodotta dalla lettura. |
+| Google Live dal browser | Passato nel controllo browser. Letti 25 Companies, 25 Contacts, 10 Opportunities, 10 Campaign Queue e 2 Research Log. Questi sono conteggi esistenti, non nuove righe create dal test.                                                                       |
+| Qualità                 | Brief inviato realmente nel turno e vincoli di ruolo verificati nei test. Audit strutturale dei dati: 10/10 opportunità con fattibilità del primo incarico zero; non è stata rieseguita la ricerca delle fonti o misurata la qualità di nuovi lead.          |
+
+La scoperta iniziale dei connettori con `app/list` e `mcpServerStatus/list` continuava ad andare in timeout. La verifica degli eventi ufficiali già conservati dall’ufficio ha identificato le chiamate Google reali, incluse scritture e successive letture del Master nei task precedenti. La chiamata ufficiale diretta `mcpServer/tool/call` ha poi funzionato nel processo dedicato. La vecchia conclusione «backend Live non collaudato» è quindi superata per la **lettura**, non estesa a nuove scritture di prova o a un’automazione di sincronizzazione certificata.
+
+Le chiamate di scrittura sono visualizzate come operazioni osservate: una risposta riuscita non certifica da sola la corrispondenza delle celle. I controlli della dashboard non cambiano score, qualificazioni, configurazioni mancanti o stati storici. Le regole di qualità aggiunte sono istruzioni al modello, non un nuovo motore di verifica delle fonti.
+
+Per vedere l’aggiornamento nel servizio già aperto occorre riavviare `npm run office` e ricaricare il browser, dopo aver concluso eventuali turni attivi. Il collaudo ha usato processi propri su porte tecniche separate; non ha riavviato quello dell’operatore. Gli screenshot privati sono in `test-results/approval-desktop.png`, `approval-mobile.png`, `office-connected.png` e `office-disconnected.png`, esclusi da Git.
+
+Ulteriori controlli del 29 ottobre:
+
+- `node office/live-check.mjs` passato: riavvio del solo bridge tecnico, sessione persistita e inizialmente offline, ripresa nella stessa chat, nuova risposta e interruzione reale con stato `interrupted`.
+- `node office/agency-check.mjs` passato: tre specialisti distinti e inattivi alla creazione, skill incompatibile respinta dal backend prima dell’avvio, prompt Campaign che seleziona la sessione corretta, invio del prompt coordinatore bloccato finché manca la sessione corretta, quarto thread coordinatore, handoff reale dallo storico, duplicato respinto, zero scritture sul Master e lettura Live di 25 aziende nel browser con audit qualità visibile. Nessuna eccezione browser.
+- Un primo tentativo del test agenzia è scaduto mentre Codex attendeva il consenso reale per leggere la skill globale, dopo un errore del sandbox Windows. Il dialogo centrale era visibile anche con un’altra chat selezionata. Il test ora riconosce quella richiesta ed eventualmente la annulla, senza concedere permessi; la successiva esecuzione è passata. Questo non prova che ogni lettura di skill sul computer possa avvenire senza consenso.
+- Screenshot aggiuntivi privati: `test-results/agency-master-live.png` e `agency-real-team.png`. Il codice è su un branch dedicato; nessuna PR o esecuzione GitHub Actions è stata richiesta.
+
+## Verifiche precedenti — 28 ottobre 2026
+
+Le sezioni seguenti conservano gli esiti del primo collaudo; per Google Live prevalgono i risultati aggiornati sopra.
 
 Ambiente: Windows, Node 22.22.2, Codex CLI 0.144.6, Edge headless. Branch `codex/real-virtual-office`, base `b1bafd02896d90d83457266575a1e8e5011ce997`. Le prove tecniche non hanno usato sessioni di lead generation esistenti, inviato email o scritto sul Master. Separatamente, su richiesta esplicita dell’operatore, è stata completata la sincronizzazione dei 15 risultati già ricercati, descritta sotto.
 
@@ -34,8 +64,8 @@ Le prove reali sono ripetibili con `test:office:live`, `test:office:protocol` e 
 
 ## Non collaudato / non disponibile
 
-- Lettura Live del Master dal backend dedicato: non collaudata. La sincronizzazione dei 15 risultati tramite il connettore di questa chat è riuscita; il servizio locale mantiene la dashboard in sola lettura e lo snapshot non viene presentato come lettura Live.
-- Riuso del connettore Google già autorizzato nella chat/app Codex: provati i metodi ufficiali `mcpServerStatus/list` e `app/list` in un processo dedicato. Entrambi hanno raggiunto il timeout di 30 secondi. Non si deduce indisponibilità permanente e non si dichiara un collegamento backend riuscito. Nessun account, progetto Cloud, login o token nuovo è stato creato; alternative con il proprio account documentate.
+- Google Live: le limitazioni riportate il 28 ottobre sono superate per la lettura dal backend e dal browser, collaudata il 29. L’adattatore opzionale service account e il flusso OAuth Desktop separato non sono stati collaudati; non sono necessari nell’ambiente in cui funziona il connettore Codex esistente.
+- Nuove scritture sui dati reali e qualità di una nuova ricerca con il brief selettivo: non eseguite durante questo aggiornamento. Nei registri delle esecuzioni precedenti sono state osservate scritture reali e successive letture; non è stato introdotto un certificatore automatico di sincronizzazione.
 - Deploy nell’account Netlify e collegamento da una sua origine HTTPS: non effettuati. La configurazione è pronta sul branch; restano da verificare impostazioni effettive del sito e autorizzazioni di rete locale del browser.
 - Esecuzione completa delle tre skill, relativa pipeline e sottofasi commerciali: volutamente non avviate durante lo sviluppo. La lettura di SKILL.md non viene dichiarata completamento di una skill.
 - Approvazione effettiva di una modifica file, domande `requestUserInput` e altri tipi di strumenti: il relativo codice o la visualizzazione dei payload è presente, ma i controlli live hanno esercitato chat, shell di lettura e approvazione comandi con **rifiuto**. Non è stata eseguita una scrittura per dimostrare un’approvazione.

@@ -3,9 +3,13 @@ import './office.css';
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
+import { ApprovalCenter } from './ApprovalCenter';
 import type { Approval, OfficeEvent, OfficeThread } from './client';
 import { api, connect, disconnect, getSnapshot, subscribe } from './client';
+import { ResearchAudit, ResearchBrief } from './ResearchBrief';
+import { defaultResearch } from './researchSettings';
 import { RoleManager } from './RoleManager';
+import { SheetOperations } from './SheetOperations';
 
 const names = ['ai-pm-lead-discovery', 'ai-pm-business-intelligence', 'ai-pm-campaign-readiness'];
 const labels = ['Lead Discovery', 'Business Intelligence', 'Campaign Readiness'];
@@ -25,82 +29,13 @@ type Sheets = {
   tabs: Record<string, string[][]>;
 };
 
-function ApprovalCard({
-  request,
-  act,
-}: {
-  request: Approval;
-  act: (operation: () => Promise<unknown>) => void;
-}) {
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  return (
-    <section className="approval">
-      <strong>Decisione richiesta da Codex</strong>
-      <p>{request.method}</p>
-      <pre>
-        {request.params.command ||
-          request.params.reason ||
-          'Verifica i dettagli prima di decidere.'}
-      </pre>
-      <details>
-        <summary>Payload ufficiale</summary>
-        <pre>{JSON.stringify(request.params, null, 2)}</pre>
-      </details>
-      {request.params.questions?.map((question) => (
-        <label key={question.id}>
-          {question.question}
-          {question.options?.map((option) => (
-            <button
-              key={option.label}
-              title={option.description}
-              onClick={() =>
-                setAnswers((previous) => ({ ...previous, [question.id]: option.label }))
-              }
-            >
-              {option.label}
-            </button>
-          ))}
-          <input
-            value={answers[question.id] || ''}
-            onChange={(event) =>
-              setAnswers((previous) => ({ ...previous, [question.id]: event.target.value }))
-            }
-          />
-        </label>
-      ))}
-      {request.params.questions ? (
-        <button onClick={() => act(() => api('approval', { id: request.id, answers }))}>
-          Invia risposta
-        </button>
-      ) : (
-        <div className="actions">
-          <button
-            onClick={() => act(() => api('approval', { id: request.id, decision: 'accept' }))}
-          >
-            Approva questa richiesta
-          </button>
-          <button
-            onClick={() => act(() => api('approval', { id: request.id, decision: 'decline' }))}
-          >
-            Rifiuta
-          </button>
-          <button
-            onClick={() => act(() => api('approval', { id: request.id, decision: 'cancel' }))}
-          >
-            Annulla
-          </button>
-        </div>
-      )}
-    </section>
-  );
-}
-
 export function CommandCenter({ children }: { children: ReactNode }) {
   const state = useSyncExternalStore(subscribe, getSnapshot);
   const [token, setToken] = useState('');
   const [selectedId, setSelectedId] = useState('');
   const [text, setText] = useState('');
   const [skill, setSkill] = useState('');
+  const [promptRole, setPromptRole] = useState<string | null>(null);
   const [model, setModel] = useState('');
   const [tab, setTab] = useState('agency');
   const [sandbox, setSandbox] = useState('read-only');
@@ -111,10 +46,20 @@ export function CommandCenter({ children }: { children: ReactNode }) {
   const [sheets, setSheets] = useState<Sheets | null>(null);
   const [sheetTab, setSheetTab] = useState('Companies');
   const [query, setQuery] = useState('');
+  const [chatExpanded, setChatExpanded] = useState(false);
+  const [research, setResearch] = useState(defaultResearch);
+  const [googleStatus, setGoogleStatus] = useState<{
+    state: string;
+    checkedAt: string;
+    details: string[];
+  } | null>(null);
   const chatLog = useRef<HTMLDivElement>(null);
   const followChat = useRef(true);
   const thread = state.threads.find((row) => row.id === selectedId) || state.threads.at(-1);
   const id = thread?.id;
+  const selectedRole = state.roles?.find((role) => role.id === thread?.role);
+  const effectiveSkill = thread?.role ? selectedRole?.skill || '' : skill;
+  const wrongRole = Boolean(promptRole && thread?.role !== promptRole);
   const act = (operation: () => Promise<unknown>) => {
     if (busy) return;
     setBusy(true);
@@ -126,6 +71,14 @@ export function CommandCenter({ children }: { children: ReactNode }) {
   useEffect(() => {
     const listener = (event: Event) => {
       setSelectedId((event as CustomEvent<string>).detail);
+      setSkill('');
+      setText('');
+      setHistory(null);
+      setPromptRole(null);
+      setResearch(
+        getSnapshot().threads.find((row) => row.id === (event as CustomEvent<string>).detail)
+          ?.lastBrief || defaultResearch,
+      );
       setTab('activity');
     };
     window.addEventListener('office-select-thread', listener);
@@ -138,7 +91,12 @@ export function CommandCenter({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => {
     let cancelled = false;
-    if (!id || !state.connected || thread?.status === 'idle' || thread?.status === 'inProgress')
+    if (
+      !id ||
+      !state.connected ||
+      (thread?.status === 'idle' && !thread.hasHistory) ||
+      thread?.status === 'inProgress'
+    )
       return;
     void api<History>('history?threadId=' + encodeURIComponent(id))
       .then((value) => {
@@ -150,25 +108,53 @@ export function CommandCenter({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [id, state.connected, thread?.status]);
+  }, [id, state.connected, thread?.status, thread?.hasHistory]);
   useEffect(() => {
     if (chatLog.current && followChat.current)
       chatLog.current.scrollTop = chatLog.current.scrollHeight;
   }, [state.cursor, id, history]);
   const items = new Map<string, Item>();
+  const inputByTurn = new Map(
+    state.events
+      .filter(
+        (event) =>
+          event.method === 'office/userMessage' &&
+          event.params.threadId === id &&
+          event.params.turnId,
+      )
+      .map((event) => [String(event.params.turnId), String(event.params.text)]),
+  );
   const persistedIds = new Set<string>();
+  const persistedTurns = new Set<string>();
   if (history && id === (history.thread as { id?: string }).id)
-    for (const turn of history.thread.turns || [])
+    for (const turn of history.thread.turns || []) {
+      if (turn.status === 'inProgress') continue;
+      if (turn.status !== 'inProgress') persistedTurns.add(turn.id);
       for (const item of turn.items) {
-        items.set(item.id, item);
+        items.set(
+          item.id,
+          item.type === 'userMessage' && inputByTurn.has(turn.id)
+            ? { ...item, text: inputByTurn.get(turn.id) }
+            : item,
+        );
         if (turn.status !== 'inProgress') persistedIds.add(item.id);
       }
+    }
   for (const event of state.events.filter((event) => event.params.threadId === id)) {
+    // thread/read can normalize item IDs. The completed turn, rather than text
+    // equality, is the authoritative boundary between history and the stream.
+    if (persistedTurns.has(String(event.params.turnId || ''))) continue;
     const eventItem = event.params.item as Item | undefined;
     if (persistedIds.has(eventItem?.id || String(event.params.itemId || ''))) continue;
     if (event.method === 'item/started' || event.method === 'item/completed') {
       const item = event.params.item as Item;
-      if (item) items.set(item.id, item);
+      if (item)
+        items.set(
+          item.id,
+          item.type === 'userMessage' && inputByTurn.has(String(event.params.turnId))
+            ? { ...item, text: inputByTurn.get(String(event.params.turnId)) }
+            : item,
+        );
     }
     if (event.method === 'item/agentMessage/delta') {
       const itemId = String(event.params.itemId);
@@ -184,16 +170,40 @@ export function CommandCenter({ children }: { children: ReactNode }) {
     ['agentMessage', 'userMessage', 'plan'].includes(item.type),
   );
   const rows = sheets?.tabs[sheetTab] || [];
+  const masterChanged = state.events.some((event) => {
+    const item = event.params.item as
+      | {
+          type?: string;
+          tool?: string;
+          status?: string;
+          error?: unknown;
+          arguments?: { spreadsheet_id?: string };
+        }
+      | undefined;
+    return (
+      event.method === 'item/completed' &&
+      item?.type === 'mcpToolCall' &&
+      item.tool === 'google_drive.batch_update_spreadsheet' &&
+      item.status === 'completed' &&
+      !item.error &&
+      item.arguments?.spreadsheet_id === '1Uuho6icG-4qfnV3jRoTFwXNUoo4wwEgoLfwWuZMZTBk' &&
+      (!sheets?.readAt || Date.parse(event.at) > Date.parse(sheets.readAt))
+    );
+  });
   const dataRows = rows
     .slice(1)
     .filter((row) => row.join(' ').toLowerCase().includes(query.toLowerCase()));
   const selectThread = (row: OfficeThread) => {
     setHistory(null);
     setSelectedId(row.id);
+    setSkill('');
+    setText('');
+    setPromptRole(null);
+    setResearch(row.lastBrief || defaultResearch);
   };
 
   return (
-    <div className="command-center">
+    <div className={'command-center' + (chatExpanded ? ' chat-expanded' : '')}>
       <header className="command-header">
         <div className="brand-mark">AI</div>
         <div>
@@ -202,6 +212,9 @@ export function CommandCenter({ children }: { children: ReactNode }) {
           </h1>
           <p>Command Center · Codex / Pixel Agents</p>
         </div>
+        <button onClick={() => setChatExpanded((value) => !value)}>
+          {chatExpanded ? 'Ufficio e chat' : 'Espandi chat'}
+        </button>
         <span className={'connection ' + (state.connected ? 'online' : '')} role="status">
           ● {state.connected ? 'Connected' : 'Disconnected'}
         </span>
@@ -285,6 +298,7 @@ export function CommandCenter({ children }: { children: ReactNode }) {
           <nav className="command-tabs" aria-label="Pannelli">
             {[
               ['agency', 'Agenzia e agenti'],
+              ['brief', 'Brief e qualità'],
               ['activity', 'Attività e dettagli'],
               ['leads', 'Master Leads'],
               ['history', 'Storico esecuzioni'],
@@ -299,6 +313,13 @@ export function CommandCenter({ children }: { children: ReactNode }) {
             ))}
           </nav>
           <section className="data-panel">
+            {tab === 'brief' && (
+              <ResearchBrief
+                value={research}
+                change={setResearch}
+                disabled={busy || !!thread?.activeTurn}
+              />
+            )}
             {tab === 'agency' && (
               <RoleManager
                 state={state}
@@ -310,9 +331,10 @@ export function CommandCenter({ children }: { children: ReactNode }) {
                   selectThread(row);
                   setTab('agency');
                 }}
-                prompt={(value, selectedSkill) => {
+                prompt={(value, selectedSkill, roleId) => {
                   setText(value);
                   setSkill(selectedSkill || '');
+                  setPromptRole(roleId || null);
                 }}
               />
             )}
@@ -335,6 +357,13 @@ export function CommandCenter({ children }: { children: ReactNode }) {
                   Un personaggio per sessione collegata. Le tre postazioni rappresentano funzioni. I
                   file consultati compaiono solo se riportati negli eventi dello strumento.
                 </p>
+                {thread?.lastBrief && (
+                  <p>
+                    Ultimo brief: {thread.lastBrief.area} · {thread.lastBrief.count} aziende ·
+                    profilo {thread.lastBrief.quality} · destinazione {thread.lastBrief.output}.
+                  </p>
+                )}
+                <SheetOperations events={state.events} threadId={id} />
                 <div className="event-list">
                   {state.events
                     .filter((event) => !id || event.params.threadId === id)
@@ -414,6 +443,13 @@ export function CommandCenter({ children }: { children: ReactNode }) {
             )}
             {tab === 'leads' && (
               <>
+                {masterChanged && (
+                  <p className="destination-note" role="status">
+                    Codex ha eseguito una chiamata di scrittura sul Master dopo l’ultima lettura qui
+                    mostrata. Premi «Leggi dati reali» per aggiornare la dashboard; la chiamata da
+                    sola non certifica la verifica delle celle.
+                  </p>
+                )}
                 <div className="panel-heading">
                   <h2>
                     Master Leads <span>READ ONLY</span>
@@ -434,6 +470,29 @@ export function CommandCenter({ children }: { children: ReactNode }) {
                     Apri il Master Leads esistente ↗
                   </a>
                 </p>
+                <div className="google-access">
+                  <strong>Accesso Google tramite Codex locale</strong>
+                  <p>
+                    Il pannello legge il Master tramite il connettore Codex esistente. Se la lettura
+                    live fallisce, mostra la data dell’ultimo snapshot disponibile. Le scritture
+                    avvengono nei task autorizzati: il resoconto in chat deve indicare righe e
+                    verifica.
+                  </p>
+                  <button
+                    disabled={!state.connected || busy}
+                    onClick={() => act(async () => setGoogleStatus(await api('google-status', {})))}
+                  >
+                    Verifica connettori locali
+                  </button>
+                  {googleStatus && (
+                    <p role="status">
+                      {googleStatus.state} ·{' '}
+                      {new Date(googleStatus.checkedAt).toLocaleString('it-IT')}
+                      <br />
+                      {googleStatus.details.join(' · ')}
+                    </p>
+                  )}
+                </div>
                 {!sheets && (
                   <p className="empty">
                     Dati non caricati. È richiesto accesso Google autorizzato nel servizio locale.
@@ -444,12 +503,15 @@ export function CommandCenter({ children }: { children: ReactNode }) {
                     <strong>
                       {sheets.status === 'snapshot'
                         ? 'Snapshot verificato — non Live'
-                        : sheets.status}
+                        : sheets.status === 'connected'
+                          ? 'Live · sola lettura'
+                          : sheets.status}
                     </strong>{' '}
                     · {sheets.reason} {sheets.readAt && 'Letto: ' + sheets.readAt}{' '}
                     {sheets.rangeLimit && '· ' + sheets.rangeLimit}
                   </p>
                 )}
+                {sheets && <ResearchAudit tabs={sheets.tabs} />}
                 <div className="actions">
                   {['Companies', 'Contacts', 'Opportunities', 'Campaign Queue', 'Research Log'].map(
                     (name) => (
@@ -520,35 +582,45 @@ export function CommandCenter({ children }: { children: ReactNode }) {
               + Sessione
             </button>
           </div>
-          <select
-            aria-label="Modello per nuove sessioni"
-            value={model}
-            onChange={(event) => setModel(event.target.value)}
-          >
-            <option value="">Modello predefinito disponibile</option>
-            {state.models?.map((row) => (
-              <option key={row.model} value={row.model}>
-                {row.displayName || row.model}
-              </option>
-            ))}
-          </select>
-          <label>
-            Permessi delle nuove sessioni
+          <details className="session-settings">
+            <summary>Nuove sessioni · modello e permessi</summary>
             <select
-              aria-label="Permessi nuove sessioni"
-              value={sandbox}
-              onChange={(event) => setSandbox(event.target.value)}
+              aria-label="Modello per nuove sessioni"
+              value={model}
+              onChange={(event) => setModel(event.target.value)}
             >
-              <option value="read-only">Sola lettura</option>
-              <option value="workspace-write">Operativo: scrittura nel workspace</option>
+              <option value="">Modello predefinito disponibile</option>
+              {state.models?.map((row) => (
+                <option key={row.model} value={row.model}>
+                  {row.displayName || row.model}
+                </option>
+              ))}
             </select>
-          </label>
+            <label>
+              Permessi delle nuove sessioni
+              <select
+                aria-label="Permessi nuove sessioni"
+                value={sandbox}
+                onChange={(event) => setSandbox(event.target.value)}
+              >
+                <option value="read-only">Sola lettura</option>
+                <option value="workspace-write">Operativo: scrittura nel workspace</option>
+              </select>
+            </label>
+          </details>
           <select
             aria-label="Sessione Codex"
             value={id || ''}
             onChange={(event) => {
               setHistory(null);
               setSelectedId(event.target.value);
+              setSkill('');
+              setPromptRole(null);
+              setText('');
+              setResearch(
+                state.threads.find((row) => row.id === event.target.value)?.lastBrief ||
+                  defaultResearch,
+              );
             }}
           >
             <option value="" disabled>
@@ -573,10 +645,15 @@ export function CommandCenter({ children }: { children: ReactNode }) {
           >
             {!chat.length && (
               <div className="empty">
-                <h3>Il tuo ufficio, attività reali.</h3>
+                <h3>
+                  {thread?.loaded && state.connected
+                    ? `${thread.label || 'Codex'} pronto`
+                    : 'Il tuo ufficio, attività reali.'}
+                </h3>
                 <p>
-                  Collega il servizio locale e crea una sessione Codex. Qui appariranno i messaggi e
-                  i risultati effettivi.
+                  {thread?.loaded && state.connected
+                    ? 'Scrivi un incarico o carica un prompt dal pannello Agenzia. La sessione lavora dopo l’invio.'
+                    : 'Collega il servizio locale e crea una sessione Codex. Qui appariranno i messaggi e i risultati effettivi.'}
                 </p>
               </div>
             )}
@@ -593,9 +670,6 @@ export function CommandCenter({ children }: { children: ReactNode }) {
               </article>
             ))}
           </div>
-          {state.approvals.map((request) => (
-            <ApprovalCard key={request.id} request={request} act={act} />
-          ))}
           {error && (
             <p className="command-error" role="alert">
               {error}
@@ -606,41 +680,78 @@ export function CommandCenter({ children }: { children: ReactNode }) {
             onSubmit={(event) => {
               event.preventDefault();
               act(async () => {
-                await api('turn', { threadId: id, text, skill: skill || undefined });
+                await api('turn', {
+                  threadId: id,
+                  text,
+                  skill: effectiveSkill || undefined,
+                  research,
+                });
                 setText('');
               });
             }}
           >
-            {thread?.role && (
-              <small>
-                Ruolo: {thread.label}. Le skill del ruolo vengono applicate al turno; la fase
-                effettiva appare solo dagli eventi osservati.
-              </small>
+            {wrongRole && (
+              <p className="command-error" role="alert">
+                Questo prompt è per {state.roles?.find((role) => role.id === promptRole)?.name}.
+                Seleziona o crea la sessione di quel reparto prima di inviarlo.
+              </p>
             )}
-            <label>
-              Skill per il prossimo messaggio
-              <select
-                aria-label="Skill"
-                value={skill}
-                onChange={(event) => setSkill(event.target.value)}
-              >
-                <option value="">Nessuna skill esplicita</option>
-                {names.map((name, index) => (
-                  <option
-                    key={name}
-                    value={name}
-                    disabled={!state.skills.find((row) => row.name === name && !row.unavailable)}
-                  >
-                    {labels[index]}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {!thread?.role && (
+              <label>
+                Skill per il prossimo messaggio
+                <select
+                  aria-label="Skill"
+                  value={skill}
+                  onChange={(event) => setSkill(event.target.value)}
+                >
+                  <option value="">Nessuna skill esplicita</option>
+                  {names.map((name, index) => (
+                    <option
+                      key={name}
+                      value={name}
+                      disabled={!state.skills.find((row) => row.name === name && !row.unavailable)}
+                    >
+                      {labels[index]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {thread?.role && (
+              <div className="role-binding">
+                <strong>{selectedRole?.name || thread.label}</strong>
+                <span>
+                  {selectedRole?.skills
+                    ? 'Pipeline: Discovery → Intelligence → Readiness'
+                    : 'Skill collegata al ruolo'}{' '}
+                  · per cambiare funzione seleziona un altro specialista.
+                </span>
+              </div>
+            )}
+            <button
+              type="button"
+              className="brief-shortcut"
+              onClick={() => {
+                setTab('brief');
+                setChatExpanded(false);
+              }}
+            >
+              Brief: {research.quality === 'selective' ? 'selettivo' : 'esplorativo'} ·{' '}
+              {research.output === 'sheets'
+                ? 'Google Sheet'
+                : research.output === 'offline'
+                  ? 'file locali'
+                  : 'solo chat'}{' '}
+              · modifica
+            </button>
             <textarea
               aria-label="Messaggio a Codex"
               placeholder="Scrivi a Codex…"
               value={text}
-              onChange={(event) => setText(event.target.value)}
+              onChange={(event) => {
+                setText(event.target.value);
+                setPromptRole(null);
+              }}
               maxLength={16000}
             />
             <div className="actions">
@@ -650,6 +761,7 @@ export function CommandCenter({ children }: { children: ReactNode }) {
                   !state.connected ||
                   !thread?.loaded ||
                   busy ||
+                  wrongRole ||
                   !!thread?.activeTurn ||
                   !text.trim()
                 }
@@ -672,6 +784,15 @@ export function CommandCenter({ children }: { children: ReactNode }) {
           </form>
         </aside>
       </main>
+      <ApprovalCenter
+        requests={state.approvals}
+        threads={state.threads}
+        busy={busy}
+        error={error}
+        respond={(request: Approval, payload) =>
+          act(() => api('approval', { id: request.id, ...payload }))
+        }
+      />
     </div>
   );
 }

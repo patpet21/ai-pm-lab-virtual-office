@@ -13,7 +13,9 @@ import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { CodexProvider } from './codex.mjs';
-import { handoffText, officePolicy, roleFor, roles } from './roles.mjs';
+import { masterReader } from './google.mjs';
+import { researchBrief, researchInstructions } from './research.mjs';
+import { handoffText, officePolicy, requestedSkills, roleFor, roles } from './roles.mjs';
 import { readMaster } from './sheets.mjs';
 import { observedSkill, skillNames } from './skills.mjs';
 
@@ -80,7 +82,9 @@ export async function startOffice(options = {}) {
   });
   provider.on('event', (message) => {
     const params = message.params ?? {};
-    const id = params.threadId ?? params.thread?.id;
+    const pending =
+      message.method === 'serverRequest/resolved' ? approvals.get(String(params.requestId)) : null;
+    const id = params.threadId ?? params.thread?.id ?? pending?.params.threadId;
     const thread = owned.find((row) => row.id === id);
     if (!thread) {
       if (message.id !== undefined)
@@ -111,6 +115,7 @@ export async function startOffice(options = {}) {
     }
     if (message.method === 'serverRequest/resolved') approvals.delete(String(params.requestId));
     if (message.method === 'turn/started') {
+      thread.hasHistory = true;
       thread.activeTurn = params.turn.id;
       thread.status = 'inProgress';
       thread.phase = null;
@@ -140,7 +145,7 @@ export async function startOffice(options = {}) {
     if (['turn/started', 'turn/completed', 'item/completed'].includes(message.method)) save();
   });
   try {
-    await provider.initialize();
+    await provider.initialize({ experimentalApi: true });
     const result = await provider.request('skills/list', { cwds: [cwd] });
     skills = result.data
       .flatMap((entry) => entry.skills)
@@ -157,6 +162,10 @@ export async function startOffice(options = {}) {
   } catch (error) {
     bootError = error.message;
   }
+  const google = masterReader(provider, {
+    cwd,
+    model: models.find((model) => model.isDefault)?.model || models[0]?.model,
+  });
   async function body(req) {
     let buffer = '';
     for await (const chunk of req) {
@@ -216,21 +225,30 @@ export async function startOffice(options = {}) {
       throw new Error('Un turno è già in esecuzione');
     if (typeof data.text !== 'string' || !data.text.trim() || data.text.length > 32000)
       throw new Error('Messaggio non valido');
-    const role = roleFor(thread.role || undefined);
-    const requested = data.skill ? [data.skill] : role?.skills || (role?.skill ? [role.skill] : []);
-    const input = [{ type: 'text', text: data.text, text_elements: [] }];
+    const requested = requestedSkills(thread, data.skill);
+    const brief = researchBrief(data.research);
+    const input = [
+      { type: 'text', text: data.text + researchInstructions(brief), text_elements: [] },
+    ];
     for (const name of requested) {
       const skill = skills.find((skill) => skill.name === name);
       if (!skill) throw new Error('Skill non disponibile');
       input.push({ type: 'skill', name: skill.name, path: skill.path });
     }
-    record({
-      method: 'office/userMessage',
-      params: { threadId: thread.id, text: data.text, requestedSkills: requested },
-    });
     turnsStarting.add(thread.id);
     try {
       const result = await provider.request('turn/start', { threadId: thread.id, input });
+      record({
+        method: 'office/userMessage',
+        params: {
+          threadId: thread.id,
+          turnId: result.turn.id,
+          text: data.text,
+          requestedSkills: requested,
+          research: brief,
+        },
+      });
+      thread.lastBrief = brief;
       if (
         !events.some(
           (event) => event.method === 'turn/completed' && event.params.turn.id === result.turn.id,
@@ -343,14 +361,42 @@ export async function startOffice(options = {}) {
           : [];
         return json(200, { events: lines });
       }
-      if (req.method === 'GET' && url.pathname === '/api/sheets')
-        return json(
-          200,
-          await readMaster({ snapshotPath: join(stateDir, 'master-snapshot.json') }),
-        );
+      if (req.method === 'GET' && url.pathname === '/api/sheets') {
+        try {
+          if (!provider.connected) throw new Error('Codex Disconnected');
+          const live = await google.read();
+          const snapshotPath = join(stateDir, 'master-snapshot.json');
+          writeFileSync(
+            snapshotPath + '.tmp',
+            JSON.stringify({ ...live, status: 'snapshot' }, null, 2),
+            { mode: 0o600 },
+          );
+          renameSync(snapshotPath + '.tmp', snapshotPath);
+          return json(200, live);
+        } catch (error) {
+          const fallback = await readMaster({
+            snapshotPath: join(stateDir, 'master-snapshot.json'),
+          });
+          return json(200, {
+            ...fallback,
+            reason: `Lettura tramite Codex non riuscita: ${error.message}. ${fallback.reason || ''}`,
+          });
+        }
+      }
       if (req.method !== 'POST') return json(404, { error: 'Not found' });
       const data = await body(req);
       if (!provider.connected) return json(503, { error: 'Codex Disconnected' });
+      if (url.pathname === '/api/google-status') {
+        try {
+          return json(200, await google.check());
+        } catch (error) {
+          return json(200, {
+            state: 'Accesso Master non verificato',
+            checkedAt: new Date().toISOString(),
+            details: [error.message, 'Nessuna scrittura eseguita.'],
+          });
+        }
+      }
       if (url.pathname === '/api/threads') return json(200, await createThread(data));
       if (url.pathname === '/api/team') {
         const teamId = randomBytes(16).toString('hex');
@@ -387,9 +433,11 @@ export async function startOffice(options = {}) {
             officePolicy + (thread.role ? ` Ruolo assegnato: ${roleFor(thread.role).name}.` : ''),
         });
         loaded.add(thread.id);
+        thread.hasHistory = Boolean(result.thread?.turns?.length) || thread.hasHistory;
         thread.status = 'idle';
         thread.activeTurn = null;
         thread.phase = null;
+        save();
         return json(200, result);
       }
       if (url.pathname === '/api/turn')
@@ -410,7 +458,7 @@ export async function startOffice(options = {}) {
           target.handoffs?.some((row) => row.sourceId === source.id && row.sourceTurnId === turn.id)
         )
           throw new Error('Questo risultato è già stato trasferito a questa sessione');
-        const result = await startTurn(target, { text });
+        const result = await startTurn(target, { text, research: source.lastBrief });
         (target.handoffs ??= []).push({
           sourceId: source.id,
           sourceTurnId: turn.id,

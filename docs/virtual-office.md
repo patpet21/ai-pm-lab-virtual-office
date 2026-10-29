@@ -14,7 +14,7 @@ npm run build:webview
 npm run office
 ```
 
-Aprire `http://127.0.0.1:4318` e inserire il token stampato nel terminale. Il token è generato casualmente a ogni avvio e rimane solo nella memoria del browser. Il servizio avvia un proprio processo `codex app-server --listen stdio://`; Codex non apre un listener Internet.
+Aprire `http://127.0.0.1:4318` e inserire il token stampato nel terminale. Il token è generato casualmente a ogni avvio e rimane solo nella memoria del browser. Il servizio avvia un proprio processo `codex app-server --listen stdio:// --enable apps`; l’abilitazione apps vale solo per questo processo, senza modificare la configurazione globale. Codex non apre un listener Internet.
 
 Se il filtro TLS aziendale/AVG usa certificati già attendibili in Windows, per npm si può usare `$env:NODE_OPTIONS='--use-system-ca'`. Non disattivare la verifica TLS.
 
@@ -71,25 +71,35 @@ Il pannello **Agenzia e agenti** distingue il ruolo assegnato dalla fase realmen
 
 I permessi delle nuove sessioni sono selezionabili: **Sola lettura** oppure **Operativo: scrittura nel workspace**. Nessun full access e nessuna modifica dei permessi globali. Gli aggiornamenti del Master richiesti dall’operatore sono consentiti solo entro le regole delle skill, con dedupe, soppressioni e verifica dopo scrittura; non rimane un divieto generico che bloccava anche le operazioni autorizzate dopo lo sviluppo.
 
+### Permessi, chat e qualità della ricerca
+
+Le richieste effettive aprono un dialogo nativo centrale, largo fino a 900 px e adattato al telefono. Mostra sessione, motivo, comando e payload ufficiale; i pulsanti restano separati dal contenuto scorrevole. **Riduci** lascia la richiesta pendente e mostra un richiamo fisso; Esc non concede permessi. I permessi non dipendono dalla visibilità del personaggio. Il controllo reale ha esercitato il rifiuto di un comando di sola lettura, non una scrittura approvata.
+
+**Espandi chat** offre una vista dedicata. Modello e permessi delle nuove sessioni sono in un gruppo richiudibile. Negli specialisti la skill è vincolata al ruolo anche sul backend: una sessione Discovery non può ereditare accidentalmente il selettore Campaign. Il coordinatore mantiene le tre skill in ordine. Lo storico dei turni completati prevale sugli eventi streaming dello stesso turno anche quando App Server normalizza gli ID degli item.
+
+**Brief e qualità** configura target, massimo candidati, area, settori, esclusioni, profilo selettivo/esplorativo e destinazione. I prompt d’esempio usano questo brief. La destinazione predefinita è il Master: prima della ricerca, le istruzioni chiedono lettura live per dedupe/soppressioni e arresto se il collegamento manca. Lo staging locale è una scelta esplicita con `pending_sync`; la consultazione in chat esclude scritture. Il brief viene inviato realmente nel turno, registrato localmente e trasmesso nell’handoff.
+
+Il profilo selettivo richiede evidenze specifiche, scarti motivati e raccomanda ulteriore ricerca prima della coda se manca evidenza di un primo incarico circoscritto. Non modifica skill globali, pesi ufficiali o score storici. Queste sono istruzioni al modello, non una garanzia di qualità: non è stata lanciata una nuova ricerca commerciale durante questo aggiornamento. Il controllo nella dashboard è strutturale, basato sui valori caricati, e non certifica le fonti.
+
 ## Google Sheets, solo lettura
 
 Unico workbook: [Master Leads esistente](https://docs.google.com/spreadsheets/d/1Uuho6icG-4qfnV3jRoTFwXNUoo4wwEgoLfwWuZMZTBk/edit).
 
-L’adattatore diretto attualmente implementato supporta un eventuale service account **già** autorizzato come Viewer. È opzionale: non occorre crearne uno per completare il resto dell’applicazione. Solo se già disponibile, `GOOGLE_APPLICATION_CREDENTIALS` indica un file conservato fuori dal repository. Non inserire credenziali nei sorgenti, nella UI, in Netlify o nel browser. Il riuso del connettore Codex esistente viene verificato prima di proporre un’altra autenticazione.
+Il percorso principale riusa il **connettore Codex già autorizzato**, attraverso il metodo ufficiale `mcpServer/tool/call`, server `codex_apps`, tool `google_drive.get_spreadsheet_metadata` e `google_drive.get_spreadsheet_range`. I nomi sono stati prima osservati negli eventi reali delle sessioni dell’ufficio e poi collaudati direttamente. Nessun nuovo account, login, client OAuth o file credenziali è necessario nell’ambiente verificato.
 
-Il codice usa lo scope `spreadsheets.readonly` e la sola operazione `values:batchGet`, con ID fisso e intervalli fissi `A1:AZ10000` per Companies, Contacts, Opportunities, Campaign Queue e Research Log. Non esistono route di scrittura Sheets. La dashboard indica intervalli e ora di lettura; la tabella visualizza le prime 300 righe filtrate. Nessun dato viene sostituito con righe locali o dati di esempio.
+`office/google.mjs` crea un contesto tecnico proprio in sola lettura, senza avviare un turno del modello o un personaggio lavorativo. Verifica il Master e legge le cinque tab, con ID e intervalli fissi (prime 1000 righe, colonne dello schema). Il browser riceve soltanto i dati, mai credenziali o token Google. L’API locale non è un proxy MCP arbitrario e non espone scritture, login o operazioni amministrative. La tabella mostra le prime 300 righe filtrate. La prova reale del 29 ottobre ha letto **25 Companies, 25 Contacts, 10 Opportunities, 10 Campaign Queue e 2 Research Log** tramite l’API locale e il browser.
 
-Il 28 ottobre, su richiesta esplicita dell’operatore, il connettore autorizzato di questa chat Codex ha aggiunto e riletto **15 aziende, 15 contatti e un Research Log**, con stato finale `synced`. ID e date originali sono stati preservati; nessuna email inviata e nessuna riga Opportunities/Campaign Queue creata. Il connettore ha funzionato in questa chat; l’accesso da parte del processo locale dedicato resta distinto e **Google Sheets Live del backend non è ancora collaudato**.
+Le scritture dei task autorizzati rimangono operazioni di Codex, soggette a rilettura, dedupe, soppressioni e verifica dopo scrittura. La chat è il riepilogo, non il deposito sostitutivo. In **Attività e dettagli**, il riquadro **Operazioni reali sul Master** distingue le chiamate Google di lettura/scrittura effettivamente osservate. Una chiamata riuscita non viene automaticamente etichettata `synced`: serve verifica delle celle. Nei registri storici dell’ufficio sono presenti chiamate di scrittura e successive letture del Master; questo aggiornamento ha eseguito soltanto letture, senza ripetere scritture di prova sui dati reali.
 
-La copia `.office/master-snapshot.json`, esclusa da Git, contiene l’ultima lettura reale verificata tramite quel connettore. In assenza di accesso diretto il backend può mostrarla con l’etichetta **Snapshot verificato — non Live** e la data di lettura. Non viene aggiornata automaticamente, non contiene esempi e non può sostituire la rilettura live per dedupe o nuove scritture. Il contenuto privato non è incluso nella build Netlify.
+Ogni lettura live riuscita aggiorna la copia privata `.office/master-snapshot.json`, esclusa da Git. Se il collegamento fallisce, viene mostrato l’errore e l’eventuale copia con **Snapshot verificato — non Live** e data. Senza accesso o snapshot lo stato è `unavailable`, senza righe sostitutive. Lo snapshot non abilita dedupe o scritture. Il contenuto privato non è incluso nella build Netlify. Rimane un adattatore opzionale per un service account Viewer già esistente (`GOOGLE_APPLICATION_CREDENTIALS`), non richiesto dal percorso Codex e non collaudato con credenziali reali.
 
 ### Connettore esistente e alternative con il proprio account
 
-La diagnostica `node office/connector-check.mjs` ha inizializzato un processo App Server dedicato e una sessione propria in sola lettura, senza avviare turni o modificare configurazioni. Le richieste ufficiali `mcpServerStatus/list` e `app/list` sono entrambe andate in timeout a 30 secondi. Non è stato possibile ottenere l’inventario operativo, chiamare il tool Google o dimostrare il riuso dal backend. Un timeout non dimostra che il connettore sia impossibile da usare: resta una verifica aperta, distinta dal suo funzionamento nella chat Codex. Non sono stati letti, esportati o copiati token del connettore.
+La diagnostica iniziale con `app/list` e `mcpServerStatus/list` è andata in timeout, anche con apps abilitate per il solo processo. **Non era una prova dell’assenza di accesso Google**: la chiamata diretta, con i tool identificati dagli eventi reali, ha poi funzionato. **Verifica connettori locali** controlla ora la lettura dei metadati del Master stesso, senza dedurla da un inventario o dal testo del modello. `node office/google-live-check.mjs` collauda l’API locale e tutte le cinque tab. Nessun token del connettore viene letto, esportato o copiato.
 
 Percorsi possibili, senza creare altri account Google:
 
-1. **Riuso del connettore Codex:** prima scelta se il processo dedicato riesce a esporlo tramite i metodi ufficiali. Il bridge dovrebbe consentire soltanto i tool di lettura del Master fisso. Al momento non è implementato un inoltro non verificato né una copia delle credenziali desktop.
+1. **Riuso del connettore Codex:** percorso implementato e verificato in lettura nell’ambiente locale; nessuna nuova autenticazione richiesta.
 2. **OAuth Desktop con il proprio account Google:** alternativa consigliata se serve un backend indipendente. Richiede un client OAuth Desktop in un progetto Google Cloud esistente o dedicato, una sola autorizzazione browser con scope `spreadsheets.readonly` e token conservati nel profilo locale, fuori da Git. Nessun service account e nessuna nuova identità Google. La procedura ufficiale è il [quickstart Node.js Google Sheets](https://developers.google.com/workspace/sheets/api/quickstart/nodejs). Il flusso OAuth di login non è ancora implementato in questa versione.
 3. **Esportazione manuale tramite il collegamento già autorizzato:** possibile soluzione transitoria senza nuova autenticazione, da presentare soltanto come snapshot con data di esportazione, mai come Sheets Live. Non è stata effettuata un’esportazione automatica in questo sviluppo.
 
@@ -114,8 +124,9 @@ npm run test:office:live
 npm run test:office:protocol
 npm run test:office:browser
 npm run test:office:agency
+node office/google-live-check.mjs
 ```
 
-Le prove live, protocol, browser e agency usano Codex reale e l’account già autenticato. Creano sessioni tecniche proprie, non eseguono la pipeline commerciale e non usano dati simulati. La prova agency richiede uno snapshot reale già verificato in `.office/master-snapshot.json`; non ne genera uno dimostrativo. Il controllo browser usa Edge headless già installato. Le sessioni tecniche possono apparire nello storico Codex dell’account. Per gli esiti effettivi del 28 ottobre 2026 e i limiti della suite originale vedere [verifica](virtual-office-verification.md).
+Le prove live, protocol, browser, agency e Google usano Codex reale e l’account già autenticato. Creano sessioni tecniche proprie, non eseguono la pipeline commerciale e non usano dati simulati. Le prove aggiornate browser/agency/Google richiedono l’accesso autorizzato al Master e non lo modificano; lo snapshot dell’operatore non viene copiato nei dati dei test. Il browser usa Edge headless già installato. Le sessioni tecniche possono apparire nello storico Codex dell’account. Le porte tecniche sono separate da 4318. Per gli esiti effettivi e i limiti della suite originale vedere [verifica](virtual-office-verification.md).
 
 La documentazione ufficiale consultata è [Codex App Server](https://learn.chatgpt.com/docs/app-server); i contratti sono stati confrontati anche con `codex app-server generate-ts` della versione locale. OpenAI qualifica App Server come sperimentale: questa implementazione locale collaudata non costituisce una garanzia di compatibilità futura o di supporto di produzione del protocollo.

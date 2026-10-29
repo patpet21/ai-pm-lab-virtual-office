@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { copyFile, mkdir, mkdtemp } from 'node:fs/promises';
+import { mkdir, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout } from 'node:timers/promises';
@@ -8,10 +8,9 @@ import { chromium } from 'playwright';
 
 import { startOffice } from './server.mjs';
 
-// Real Codex sessions and the existing verified Master snapshot. No fixture
+// Real Codex sessions and authorized live Master reads. No fixture
 // businesses, intercepted routes, invented tool events, or commercial workflow.
 const stateDir = await mkdtemp(join(tmpdir(), 'ai-pm-office-agency-'));
-await copyFile('.office/master-snapshot.json', join(stateDir, 'master-snapshot.json'));
 const port = 14320;
 const office = await startOffice({ port, stateDir });
 const base = `http://127.0.0.1:${port}`;
@@ -30,10 +29,16 @@ const api = async (path, data) => {
   assert.equal(response.status, 200, JSON.stringify(result));
   return result;
 };
-async function waitCompleted(threadId) {
+async function waitCompleted(threadId, allowApproval = false) {
   for (let attempt = 0; attempt < 225; attempt++) {
     const state = await api('state');
-    if (state.threads.find((thread) => thread.id === threadId)?.status === 'completed')
+    if (allowApproval && state.approvals.some((request) => request.params.threadId === threadId))
+      return state;
+    if (
+      ['completed', 'interrupted'].includes(
+        state.threads.find((thread) => thread.id === threadId)?.status,
+      )
+    )
       return state;
     if (state.threads.find((thread) => thread.id === threadId)?.status === 'failed')
       throw new Error('Actual Codex turn failed');
@@ -62,11 +67,34 @@ try {
   );
   assert.ok(state.threads.every((thread) => thread.status === 'idle' && !thread.activeTurn));
   assert.equal(await page.getByTitle(/^Agent \d+$/).count(), 3);
+  const wrongSkill = await fetch(base + '/api/turn', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      threadId: state.threads[0].id,
+      skill: 'ai-pm-campaign-readiness',
+      text: 'Test tecnico: nessun tool, ricerca o scrittura.',
+    }),
+  });
+  assert.equal(wrongSkill.status, 400);
+  const campaignCard = page
+    .locator('.role-card')
+    .filter({ has: page.getByRole('heading', { name: 'Campaign Readiness', exact: true }) });
+  await campaignCard.getByRole('button', { name: 'Usa prompt d’esempio', exact: true }).click();
+  assert.equal(
+    await page.getByLabel('Sessione Codex', { exact: true }).inputValue(),
+    state.threads.find((thread) => thread.role === 'campaign').id,
+  );
+  assert.equal(await page.getByLabel('Skill', { exact: true }).count(), 0);
   console.log('PASS three real idle sessions, distinct roles, same team, three real characters');
   const coordinator = page
     .locator('.role-card')
     .filter({ has: page.getByRole('heading', { name: 'Agenzia coordinata', exact: true }) });
   await coordinator.getByRole('button', { name: 'Usa prompt d’esempio' }).click();
+  assert.equal(
+    await page.getByRole('button', { name: 'Invia a Codex', exact: true }).isDisabled(),
+    true,
+  );
   assert.ok(
     (await page.getByLabel('Messaggio a Codex').inputValue()).includes('pipeline completa'),
   );
@@ -87,11 +115,33 @@ try {
   await waitCompleted(source.id);
   const result = await api('handoff', { fromThreadId: source.id, toThreadId: target.id });
   assert.equal(result.threadId, target.id);
-  const done = await waitCompleted(target.id);
+  let done = await waitCompleted(target.id, true);
+  if (done.approvals.some((request) => request.params.threadId === target.id)) {
+    // Windows may require a real approval to read a global skill. Do not
+    // auto-grant it. Exercise the global dialog and cancel this technical turn.
+    const dialog = page.getByRole('dialog', { name: 'Permesso richiesto', exact: true });
+    await dialog.waitFor();
+    assert.ok((await dialog.innerText()).includes('Business Intelligence'));
+    await dialog.getByRole('button', { name: 'Annulla', exact: true }).click();
+    await dialog.waitFor({ state: 'hidden' });
+    done = await waitCompleted(target.id);
+    console.log(
+      'PASS global skill-read approval shown independently of selected chat / cancelled without granting permission',
+    );
+  }
   assert.ok(
     done.events.some(
       (event) => event.method === 'office/handoff' && event.params.fromThreadId === source.id,
     ),
+  );
+  assert.equal(
+    done.events.filter(
+      (event) =>
+        event.method === 'item/completed' &&
+        event.params.item?.type === 'mcpToolCall' &&
+        event.params.item?.tool === 'google_drive.batch_update_spreadsheet',
+    ).length,
+    0,
   );
   const history = await api('history?threadId=' + target.id);
   assert.ok(
@@ -110,21 +160,28 @@ try {
   });
   assert.equal(duplicate.status, 400);
   console.log(
-    'PASS official history handoff, real target turn, missing-ID stop, duplicate rejected',
+    'PASS official history handoff, real target turn, zero Sheet writes, duplicate rejected',
   );
   await page.getByRole('button', { name: 'Master Leads', exact: true }).click();
   await page.getByRole('button', { name: 'Leggi dati reali', exact: true }).click();
-  await page.getByText('Snapshot verificato — non Live', { exact: true }).waitFor();
-  assert.equal(await page.locator('.data-panel tbody tr').count(), 15);
+  await page.getByText('Live · sola lettura', { exact: true }).waitFor({ timeout: 65000 });
   const sheets = await api('sheets');
-  assert.equal(sheets.status, 'snapshot');
-  assert.equal(sheets.verifiedSync.status, 'synced');
-  assert.equal(sheets.tabs.Companies.length - 1, 15);
-  await page.screenshot({ path: 'test-results/agency-master-snapshot.png', fullPage: true });
+  assert.equal(sheets.status, 'connected');
+  assert.ok(sheets.tabs.Companies.length > 1);
+  assert.equal(
+    await page.locator('.data-panel tbody tr').count(),
+    Math.min(300, sheets.tabs.Companies.length - 1),
+  );
+  await page
+    .getByRole('region', { name: 'Controlli qualità dei dati caricati', exact: true })
+    .waitFor();
+  await page.screenshot({ path: 'test-results/agency-master-live.png', fullPage: true });
   await page.getByRole('button', { name: 'Agenzia e agenti', exact: true }).click();
   await page.screenshot({ path: 'test-results/agency-real-team.png', fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('PASS actual 15-row Master snapshot, explicitly not Live, browser has no exceptions');
+  console.log(
+    `PASS actual ${sheets.tabs.Companies.length - 1}-row Master live, read only, browser has no exceptions`,
+  );
 } catch (error) {
   await page.screenshot({ path: 'test-results/agency-failure.png', fullPage: true });
   throw error;

@@ -10,16 +10,18 @@ import { startOffice } from './server.mjs';
 // Real local service + real browser + real Codex. No route interception,
 // injected activity, fixtures, or simulated agents.
 const stateDir = await mkdtemp(join(tmpdir(), 'ai-pm-office-browser-'));
-const office = await startOffice({ stateDir });
+const port = 14321;
+const base = `http://127.0.0.1:${port}`;
+const office = await startOffice({ stateDir, port });
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
 const page = await browser.newPage({ viewport: { width: 1600, height: 1100 } });
 const failures = [];
 page.on('pageerror', (error) => failures.push(error.message));
 await mkdir('test-results', { recursive: true });
-const headers = { Origin: 'http://127.0.0.1:4318', Authorization: `Bearer ${office.token}` };
-const snapshot = async () => (await fetch('http://127.0.0.1:4318/api/state', { headers })).json();
+const headers = { Origin: base, Authorization: `Bearer ${office.token}` };
+const snapshot = async () => (await fetch(base + '/api/state', { headers })).json();
 try {
-  await page.goto('http://127.0.0.1:4318');
+  await page.goto(base);
   await page.getByRole('heading', { name: 'AI PM LAB VIRTUAL OFFICE' }).waitFor();
   await page.getByRole('status').filter({ hasText: 'Disconnected' }).waitFor();
   await page.locator('canvas').first().waitFor();
@@ -78,6 +80,28 @@ try {
     );
   await page.getByRole('button', { name: 'Invia a Codex', exact: true }).click();
   await page.locator('.approval').waitFor({ timeout: 180000 });
+  const dialog = page.getByRole('dialog', { name: 'Permesso richiesto', exact: true });
+  await dialog.waitFor();
+  const bounds = await dialog.boundingBox();
+  assert.ok(bounds.width >= 850 && bounds.x > 0 && bounds.x + bounds.width <= 1600);
+  await page.screenshot({ path: 'test-results/approval-desktop.png' });
+  await dialog.getByRole('button', { name: 'Riduci', exact: true }).click();
+  await dialog.waitFor({ state: 'hidden' });
+  assert.ok((await snapshot()).approvals.length > 0);
+  await page.getByRole('button', { name: /decisione richiesta/ }).click();
+  await dialog.waitFor();
+  await page.keyboard.press('Escape');
+  assert.equal(await dialog.isVisible(), true);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobile = await dialog.boundingBox();
+  assert.ok(
+    mobile.x >= 0 &&
+      mobile.y >= 0 &&
+      mobile.x + mobile.width <= 390 &&
+      mobile.y + mobile.height <= 844,
+  );
+  await page.getByRole('button', { name: 'Rifiuta', exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'test-results/approval-mobile.png' });
   await page.getByRole('button', { name: 'Rifiuta', exact: true }).click();
   await page.locator('.approval').waitFor({ state: 'detached', timeout: 15000 });
   await page.waitForFunction(
@@ -91,11 +115,49 @@ try {
     ),
   );
   console.log('PASS real browser approval panel / decline / turn stopped requesting permission');
+  await page.setViewportSize({ width: 1600, height: 1100 });
+  await page.getByRole('button', { name: 'Espandi chat', exact: true }).click();
+  assert.equal(await page.locator('.office-column').isVisible(), false);
+  assert.ok((await page.locator('.chat-column').boundingBox()).width >= 1000);
+  await page.getByRole('button', { name: 'Ufficio e chat', exact: true }).click();
+  await page.getByRole('button', { name: 'Brief e qualità', exact: true }).click();
+  await page.getByLabel('Obiettivo aziende', { exact: true }).fill('5');
+  await page.getByLabel('Destinazione risultati', { exact: true }).selectOption('chat');
+  await page
+    .getByLabel('Messaggio a Codex')
+    .fill('Test tecnico: rispondi BRIEF_RECEIVED senza strumenti, ricerche o scritture.');
+  await page.getByRole('button', { name: 'Invia a Codex', exact: true }).click();
+  await page
+    .locator('.chat-message.agentMessage')
+    .filter({ hasText: 'BRIEF_RECEIVED' })
+    .first()
+    .waitFor({ timeout: 180000 });
+  const sent = (await snapshot()).events
+    .filter((event) => event.method === 'office/userMessage')
+    .at(-1);
+  assert.equal(sent.params.research.output, 'chat');
+  assert.equal(sent.params.research.count, 5);
+  await page.waitForFunction(
+    () => document.querySelector('.office-heading')?.textContent?.includes('0 turni attivi'),
+    { timeout: 180000 },
+  );
+  await page.getByRole('button', { name: 'Storico esecuzioni', exact: true }).click();
+  await page.getByRole('button', { name: 'Leggi registro locale', exact: true }).click();
+  await page.getByText('Turni e risultati della sessione selezionata', { exact: true }).waitFor();
+  assert.equal(
+    await page.locator('.chat-message.agentMessage').filter({ hasText: 'BRIEF_RECEIVED' }).count(),
+    1,
+  );
+  console.log(
+    'PASS large approval / minimize retains pending request / Esc grants nothing / mobile buttons visible / expanded chat / real brief submission',
+  );
   await page.getByRole('button', { name: 'Master Leads', exact: true }).click();
   await page.getByRole('button', { name: 'Leggi dati reali' }).click();
-  await page.getByText(/Google Sheets Live non collaudato/).waitFor();
-  assert.equal(await page.locator('.data-panel tbody tr').count(), 0);
-  console.log('PASS unauthorized Sheets shows unavailable / no substitute rows');
+  await page.getByText('Live · sola lettura', { exact: true }).waitFor({ timeout: 65000 });
+  assert.ok((await page.locator('.data-panel tbody tr').count()) > 0);
+  console.log(
+    'PASS authorized Codex connector reads actual Master live / no new credentials or writes',
+  );
   await page.getByRole('button', { name: 'Storico esecuzioni', exact: true }).click();
   await page.getByRole('button', { name: 'Leggi registro locale' }).click();
   await page.getByText('Turni e risultati della sessione selezionata', { exact: true }).waitFor();

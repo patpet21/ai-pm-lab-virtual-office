@@ -18,7 +18,7 @@ export function RoleManager({
   sandbox: string;
   act: (work: () => Promise<unknown>) => void;
   select: (thread: OfficeThread) => void;
-  prompt: (text: string, skill?: string) => void;
+  prompt: (text: string, skill?: string, roleId?: string) => void;
 }) {
   const [target, setTarget] = useState<Record<string, string>>({});
   const available = state.connected && !busy;
@@ -36,7 +36,7 @@ export function RoleManager({
                 sandbox,
               });
               select(team.threads[0]);
-              prompt(roleList[0].example, roleList[0].skill);
+              prompt(roleList[0].example, roleList[0].skill, roleList[0].id);
             })
           }
         >
@@ -71,13 +71,19 @@ export function RoleManager({
                         sandbox,
                       });
                       select(thread);
-                      prompt(role.example, role.skill);
+                      prompt(role.example, role.skill, role.id);
                     })
                   }
                 >
                   Crea {role.id === 'coordinator' ? 'coordinatore' : 'specialista'}
                 </button>
-                <button onClick={() => prompt(role.example, role.skill)}>
+                <button
+                  onClick={() => {
+                    const ready = threads.find((thread) => thread.loaded && !thread.activeTurn);
+                    if (ready) select(ready);
+                    prompt(role.example, role.skill, role.id);
+                  }}
+                >
                   Usa prompt d’esempio
                 </button>
               </div>
